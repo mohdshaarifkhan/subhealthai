@@ -5,28 +5,24 @@ export default function GenerateWeeklyButton() {
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
 
-  async function handleClick() {
+  async function run() {
     setLoading(true); setMsg(null)
     try {
-      const res = await fetch('/api/weekly-note', { method: 'POST' })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to generate')
+      const r = await fetch('/api/weekly-note', { method: 'POST' })
+      const j = await r.json()
+      if (!r.ok || !j.ok) throw new Error(j.error || 'failed')
       setMsg('Weekly note generated.')
-      // simple refresh
-      window.location.reload()
-    } catch (e: any) {
-      setMsg(e.message || 'Error')
-    } finally {
-      setLoading(false)
-    }
+      window.location.reload() // ← important so UI shows the new note
+    } catch (e:any) { setMsg(e.message) }
+    finally { setLoading(false) }
   }
 
   return (
     <div className="flex items-center gap-3">
       <button
-        onClick={handleClick}
+        onClick={run}
         disabled={loading}
-        className="rounded-xl border px-4 py-2 hover:bg-gray-50 disabled:opacity-50"
+        className="rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
       >
         {loading ? 'Generating…' : 'Generate Weekly Note'}
       </button>
