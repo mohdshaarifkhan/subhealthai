@@ -1,0 +1,58 @@
+[
+    {
+      "day": -6,
+      "steps": 9000,
+      "sleep_minutes": 420,
+      "hr_avg": 70,
+      "hrv_avg": 55,
+      "rhr": 62
+    },
+    {
+      "day": -5,
+      "steps": 8500,
+      "sleep_minutes": 410,
+      "hr_avg": 70,
+      "hrv_avg": 54,
+      "rhr": 63
+    },
+    {
+      "day": -4,
+      "steps": 8000,
+      "sleep_minutes": 400,
+      "hr_avg": 71,
+      "hrv_avg": 50,
+      "rhr": 64
+    },
+    {
+      "day": -3,
+      "steps": 6500,
+      "sleep_minutes": 380,
+      "hr_avg": 72,
+      "hrv_avg": 45,
+      "rhr": 68
+    },
+    {
+      "day": -2,
+      "steps": 5000,
+      "sleep_minutes": 360,
+      "hr_avg": 74,
+      "hrv_avg": 38,
+      "rhr": 78
+    },
+    {
+      "day": -1,
+      "steps": 4500,
+      "sleep_minutes": 300,
+      "hr_avg": 76,
+      "hrv_avg": 35,
+      "rhr": 82
+    },
+    {
+      "day": 0,
+      "steps": 4000,
+      "sleep_minutes": 270,
+      "hr_avg": 78,
+      "hrv_avg": 33,
+      "rhr": 85
+    }
+  ]

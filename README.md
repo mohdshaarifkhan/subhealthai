@@ -82,12 +82,53 @@ This repository contains the **starter codebase**, database schema, and demo UI 
 ```
 ---
 
+You can test SubHealthAI locally in 60 seconds:
+
+1. Start the dev server:
+   ```bash
+   npm run dev
+   ```
+2. Open http://localhost:3000/ingest
+3. Upload the sample file docs/sample.csv
+4. Visit http://localhost:3000/dashboard → metrics & charts update.
+5. Click Run Daily Cron (Demo) → flags + weekly note generated.
+6. Open http://localhost:3000/weekly → weekly summary.
+7. Download PDF from http://localhost:3000/api/report 
+
+⚠️ Demo only - no PHI, not a medical device.
+
+---
+
 ## 🛠 Tech Stack
-- **Frontend**: Next.js (App Router), TailwindCSS  
-- **Backend / Auth**: Supabase (Postgres, Row-Level Security, Auth)  
-- **Data Processing**: Cron-style scripts for wearable delta ingestion + flag computation  
-- **AI Integration**: LLM wrappers for generating weekly notes (OpenAI / Hugging Face)  
-- **Export**: PDF generation + email delivery (transactional API integration planned)  
+**Frontend (App Layer)**  
+- Next.js (App Router), React, TypeScript  
+- TailwindCSS + shadcn/ui for responsive, clinician-friendly UI  
+
+**Backend & Database**  
+- Supabase (Postgres with Row-Level Security, Auth, Storage)  
+- Supabase Edge Functions (Deno/TypeScript) for ingestion and daily rollups  
+- Python Worker for analytics and ML pipelines (decoupled from web app)  
+
+**Data Processing & Analytics**  
+- Ingestion: wearable APIs, lifestyle logs, CSV imports  
+- Baseline deviation analysis (sleep, HR, HRV, steps)  
+- Hybrid rules + ML scoring engine (Python):  
+  - scikit-learn → anomaly detection, clustering, baseline modeling  
+  - PyTorch → time-series forecasting and risk scoring  
+
+**AI & NLP Integration**  
+- LLMs (OpenAI GPT, Hugging Face transformers) for plain-language weekly notes  
+- Schema-enforced outputs with disclaimers and rationales stored in audit logs  
+- Compliance guardrails: prevent diagnostic claims, enforce structured reporting  
+
+**Reporting & Export**  
+- react-pdf / pdf-lib for clinician-ready exports  
+- Transactional email delivery (Postmark, SendGrid, Supabase Functions)  
+
+**Security & Compliance**  
+- Row-Level Security on all user data  
+- Audit logging of all automated actions (`audit_log` table)  
+- HIPAA/FDA alignment by design (encryption, disclaimers, transparency)  
 
 ---
 
@@ -103,13 +144,44 @@ Key tables in `/supabase/schema.sql`:
 ---
 
 ## 📈 Roadmap
+**MVP (In Progress)**  
 - [x] Project scaffold: Next.js + Supabase + TailwindCSS  
-- [x] Core schema design (users, events, flags, metrics, notes, audit log)  
-- [ ] Basic dashboard UI with signal flags + weekly note preview  
-- [ ] PDF export and clinician-ready report  
-- [ ] Integrations with wearable APIs (Fitbit, Oura, Garmin, Apple Health)  
-- [ ] Advanced AI models: time-series forecasting, embeddings, and multi-modal risk scoring  
-- [ ] Exploratory pilot testing with clinical advisors (pending regulatory alignment)  
+- [x] Core schema design (users, events_raw, metrics, flags, weekly_notes, audit_log)  
+- [x] Rule-based flagging engine (Python + TypeScript) with rationale strings  
+- [x] Demo dashboard UI (flags + weekly note preview)  
+- [x] CSV ingest + rollup pipeline for reproducible demo data  
+- [x] Charts on dashboard (sleep, HRV trends)  
+- [x] Cron API route (demo: daily flags + weekly note generation)  
+- [x] PDF export (clinician-ready demo report)  
+- [ ] Transactional email delivery (send report to clinician)
+
+**Next Phase**  
+- [ ] Wearable API integrations (Fitbit, Oura, Garmin, Apple Health)  
+- [ ] Baseline deviation engine (personalized thresholds vs population averages)  
+- [ ] NLP-based weekly notes with schema guardrails + disclaimers (OpenAI/Hugging Face)  
+- [ ] Expanded audit logs for compliance transparency  
+
+**Research & Clinical Roadmap (2026+)**  
+- [ ] Advanced ML models:  
+  - **scikit-learn** for anomaly detection, clustering, baselines  
+  - **PyTorch** for time-series forecasting and multimodal risk scoring  
+- [ ] Embedding models for cross-signal correlation (HRV ↔ sleep debt ↔ recovery lag)  
+- [ ] HL7 FHIR integration for clinician/EHR interoperability  
+- [ ] Pilot testing with clinical advisors under HIPAA/FDA alignment  
+- [ ] Patent filing for “System and Method for Subclinical Risk Flagging and Explainable AI Summaries”  
+
+---
+
+## 🔮 Future Integrations
+
+SubHealthAI is designed to **extend, not compete with, wearable platforms**.  
+Our value is in **cross-signal integration, explainable early-warning flags, and compliance guardrails**.
+
+Planned integrations include:
+- **Wearables**: Fitbit, Oura, Apple Health, WHOOP  
+- **Lab inputs**: CRP, HbA1c, Vitamin D (optional patient-provided)  
+- **EHR interoperability**: HL7 FHIR APIs for clinical pilots  
+- **ML models**: anomaly detection, embeddings, multimodal risk scoring
 
 ---
 
@@ -132,10 +204,10 @@ We welcome collaborators in:
 ---
 
 ## 📬 Contact
-Founder: **Mohd Shaarif Khan**  
-Email: **shaarifkhan12@gmail.com**
-GitHub: **https://github.com/Shaarax**  
-LinkedIn: **www.linkedin.com/in/mohdshaarif-khan**  
+- Founder: **Mohd Shaarif Khan**  
+- Email: **shaarifkhan12@gmail.com**
+- GitHub: **https://github.com/Shaarax**  
+- LinkedIn: **www.linkedin.com/in/mohdshaarif-khan**  
 
 ---
 
