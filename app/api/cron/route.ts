@@ -30,3 +30,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: e?.message || 'cron failed', day }, { status: 500 })
   }
 }
+
+export async function GET(req: Request) { return POST(req) } // allow GET for demo clicks
