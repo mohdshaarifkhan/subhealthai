@@ -48,6 +48,10 @@ export async function GET() {
   page.drawText(
     'This report provides preventive insights and is not a medical diagnosis.',
     { x: 72, y, size: 10, font, color: rgb(0.2,0.2,0.2) }
+  ); y -= 12
+  page.drawText(
+    'This risk score is an AI-generated, non-diagnostic indicator intended for preventive context and clinician discussion. Not for emergencies.',
+    { x: 72, y, size: 10, font, color: rgb(0.2,0.2,0.2) }
   )
 
   // ... after Disclaimer block:
