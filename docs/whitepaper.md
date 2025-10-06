@@ -87,26 +87,64 @@ SubHealthAI addresses this gap by turning fragmented consumer health data into *
 
 ---
 
-## 6. Pilot & Evaluation Plan  
-- **Exploratory pilot with clinical advisors** to test feasibility.  
-- Metrics: ingestion accuracy, flag precision, system uptime, user comprehension.  
-- Clinician evaluation: clarity and usefulness of reports in preventive workflows.  
-- Compliance check: HIPAA, FDA digital health guidelines.  
+## 6. Machine Learning Extension (Technical Deep Dive)
+
+### 6.1 Baseline Model (Scikit-learn)
+- Type: Isolation Forest with robust z-score normalization.
+- Inputs: HRV_mean, RHR_mean, sleep_hours, steps.
+- Method: builds per-user rolling baseline → detects anomaly → logistic squashing to 0–1 risk score.
+- Output Table: `risk_scores(user_id, day, risk_score, model_version, features)`.
+
+### 6.2 Forecast Model (PyTorch GRU)
+- Type: Sequence-to-one GRU forecaster.
+- Input Window: 14-day rolling sequences of health metrics.
+- Output: Predicts next-day “risk proxy”; mapped via sigmoid to 0–1.
+- Deployment: Automated via GitHub Actions nightly runs.
+
+### 6.3 Explainability
+- Linear surrogate + SHAP beeswarm plots for transparent feature attribution.
+- Visuals: per-feature contribution (e.g., low HRV → +0.18 risk, high RHR → +0.22).
+- Output: `/ml/outputs/shap_<user>_<date>.png`.
 
 ---
 
-## 7. Roadmap & Future Vision  
-- **Year 1–2:** Complete MVP, publish technical whitepaper, open-source core modules.  
-- **Year 2–3:** Expand into time-series ML models and multimodal data (labs + lifestyle).  
-- **Year 3–4:** Integrate with FHIR/EHR systems for clinical testing.  
-- **Year 4–5:** Scale adoption via partnerships; expand predictive models (autoimmune, metabolic dysfunction).  
-- **Long-term:** a public-facing platform under physician oversight, bridging consumer monitoring with formal healthcare systems.  
+## 7. Results & Visualization
+- **Demo Flow**: ingest → metrics → flags → weekly summary → ML risk overlay.
+- **Risk Panel UI**: RiskBadge (0–1 scale) with color coding.
+- **Audit Log**: tracks all LLM + ML actions.
+- **PDF Reports**: risk summaries appended to weekly clinical report.
 
 ---
 
-## 8. References  
-- CDC. *Chronic Disease Burden in the United States.* (2023).  
-- HHS. *Digital Health Strategy.* (2022).  
-- NIH. *AI for Biomedical and Behavioral Research.* (2023).  
-- FDA. *Digital Health Innovation Action Plan.* (2021).  
-- Peer-reviewed validation studies of wearables (HRV via Fitbit, Oura sleep accuracy, Garmin step tracking).  
+## 8. Compliance & Guardrails (Extended)
+- All ML outputs carry disclaimer: *“This is not a diagnostic output; interpret with clinical oversight.”*
+- Versioned model IDs recorded in `audit_log` for reproducibility.
+- ML explainability visualizations available for every risk score.
+
+---
+
+## 9. Public Health Impact
+- Quantified potential: early identification of “pre-illness” patterns.
+- Preventive interventions guided by data → reduced ER visits & chronic-care costs.
+- Alignment with:
+  - CDC Preventive Health Framework.
+  - NIH “Bridge2AI” initiative.
+  - HHS Digital Health Strategy 2022.
+
+---
+
+## 10. Future Research Directions
+- Multimodal fusion (lab + wearable + lifestyle).
+- Personalized model retraining via federated learning.
+- Real-time dashboards for clinicians.
+- Open-source API for research collaboration.
+
+---
+
+## 11. Appendix
+- Model architecture diagrams (baseline + forecast).
+- Example Supabase schema.
+- GitHub Actions YAML (nightly ML automation).
+- SHAP visualization examples.
+
+---
