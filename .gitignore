@@ -24,3 +24,10 @@ pnpm-debug.log*
 *.swp
 *.swo
 coverage
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
