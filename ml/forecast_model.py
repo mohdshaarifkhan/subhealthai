@@ -27,15 +27,31 @@ class GRURegressor(nn.Module):
         return self.head(out[:, -1, :])
 
 def fetch_user_days(user_id: str) -> pd.DataFrame:
-    res = supabase.table("metrics").select(
-        "user_id, day, hrv_mean, rhr_mean, sleep_hours, steps"
-    ).eq("user_id", user_id).order("day").execute()
+    # Read from the canonical view we created
+    res = supabase.table("metrics_for_ml").select("*").eq("user_id", user_id).order("day").execute()
     df = pd.DataFrame(res.data or [])
-    if df.empty: return df
+    if df.empty:
+        return df
+
+    # Normalize types
     df["day"] = pd.to_datetime(df["day"]).dt.date
+
+    # Ensure expected columns exist (they do in the view); coerce to float
+    for c in ["hrv_mean", "rhr_mean", "sleep_hours", "steps"]:
+        if c not in df.columns:
+            df[c] = np.nan
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+
+    # Drop rows with all-NaN features
+    if df[["hrv_mean","rhr_mean","sleep_hours","steps"]].isna().all(axis=1).all():
+        return pd.DataFrame()
+
     return df
 
+
 def train_and_predict(df: pd.DataFrame, seq_len=14):
+    if len(df) < (seq_len + 16):
+        return None  # not enough history to train and forecast robustly
     # Normalize per-user
     X = df[FEATURES].astype(float).values
     mu, sd = np.nanmean(X, axis=0), np.nanstd(X, axis=0) + 1e-6
@@ -75,6 +91,9 @@ def train_and_predict(df: pd.DataFrame, seq_len=14):
 
     # Map proxy to 0..1 risk with sigmoid
     risk = 1 / (1 + np.exp(-1.0 * next_proxy))
+    # JSON-safe risk
+    if not np.isfinite(risk):
+        risk = 0.5
     return float(risk)
 
 def upsert(user_id: str, next_day: date, risk: float, df: pd.DataFrame):
