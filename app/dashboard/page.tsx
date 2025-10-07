@@ -10,7 +10,7 @@ type Explain = {
   reasons: string[]; imageUrl?: string; disclaimer: string;
 };
 
-const DEMO_USER_ID = "b2ea6462-6916-43d1-9c36-50d040ad8dc0"; // TODO: swap with session user
+const DEMO_USER_ID = "c1454b12-cd49-4ae7-8f4d-f261dcda3136"; // TODO: swap with session user
 
 function RiskBadge({ score }: { score: number }) {
   const pct = Math.round(Math.max(0, Math.min(1, score)) * 100);
@@ -73,11 +73,17 @@ export default function Dashboard() {
     .sort((a,b) => a.day.localeCompare(b.day))
     .at(-1);
 
-  // pick a forecast for tomorrow if present
-  const tomorrowISO = new Date(Date.now() + 24*60*60*1000).toISOString().slice(0,10);
-  const forecastTomorrow = riskSeries.find(
-    r => r.model_version?.startsWith("forecast") && r.day === tomorrowISO
-  );
+  // improved forecast logic
+  const tomorrowISO = new Date(Date.now() + 86400000).toISOString().slice(0,10);
+  
+  const forecasts = riskSeries
+    .filter(r => (r.model_version || '').toLowerCase().startsWith('forecast'))
+    .sort((a,b) => a.day.localeCompare(b.day));
+
+  const forecastTomorrow = forecasts.find(r => r.day === tomorrowISO);
+  const latestForecast = forecasts.at(-1);
+  
+  const forecastRow = forecastTomorrow ?? latestForecast; // fallback
 
   // simple spark bars from the last 14 risk points (any model)
   const spark = riskSeries.slice(-14);
@@ -138,19 +144,21 @@ export default function Dashboard() {
               )}
             </div>
 
-            <div className="rounded-xl border p-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Tomorrow (Forecast)</span>
-                {forecastTomorrow && <RiskBadge score={forecastTomorrow.risk_score} />}
-              </div>
-              <div className="mt-2 grid grid-cols-2 gap-3">
-                <LabeledStat label="Date" value={forecastTomorrow ? forecastTomorrow.day : "—"} />
-                <LabeledStat label="Model" value={forecastTomorrow ? forecastTomorrow.model_version : "—"} />
-              </div>
-              {!forecastTomorrow && (
-                <div className="mt-2 text-xs text-gray-500">No forecast available yet.</div>
-              )}
-            </div>
+        <div className="rounded-xl border p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600">
+              {forecastTomorrow ? "Tomorrow (Forecast)" : "Most Recent Forecast"}
+            </span>
+            {forecastRow && <RiskBadge score={forecastRow.risk_score} />}
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-3">
+            <LabeledStat label="Date" value={forecastRow?.day ?? "—"} />
+            <LabeledStat label="Model" value={forecastRow?.model_version ?? "—"} />
+          </div>
+          {!forecastRow && (
+            <div className="mt-2 text-xs text-gray-500">No forecast available yet.</div>
+          )}
+        </div>
 
             {/* Sparkline substitute */}
             <div className="rounded-xl border p-3">

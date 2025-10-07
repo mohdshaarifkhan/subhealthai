@@ -4,7 +4,7 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const DEMO_USER_ID = "b2ea6462-6916-43d1-9c36-50d040ad8dc0"; // <- replace if needed
+const DEMO_USER_ID = "c1454b12-cd49-4ae7-8f4d-f261dcda3136"; // <- replace if needed
 
 function toPct01(x: number) {
   return Math.round(Math.max(0, Math.min(1, x)) * 100);
