@@ -1,5 +1,9 @@
 # SubHealthAI – Architecture (MVP)
 
+This document describes the **data flow, schema, and system jobs** of the SubHealthAI MVP, 
+illustrating how wearable and lifestyle data moves through ingestion, analysis, AI summarization, 
+and explainability pipelines.
+
 ## Data Flow
 1. **Ingest → `events_raw`** (wearables, lifestyle logs, CSV)
 2. **Daily Rollup → `metrics`** (HRV, RHR, sleep minutes, steps)
