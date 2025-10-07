@@ -1,45 +1,37 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-type Row = {
-  day: string;
-  risk_score: number;
-  model_version: string;
-  features: any; // JSON with { raw, z }
-};
-
-function toPct(x: number) {
-  return Math.round(Math.min(1, Math.max(0, x)) * 100);
-}
+function toPct(x: number) { return Math.round(Math.min(1, Math.max(0, x)) * 100); }
 
 function explainFromZ(z: Record<string, number>) {
-  // z-scores directionality used in models: HRV(z-) better=↑, RHR(z+) worse=↑, Sleep(z-) better=↑, Steps(z-) better=↑
-  const items: { feature: string; z: number; impact: string }[] = [];
-  const push = (feature: string, zval: number, worseWhenPositive: boolean, label: string) => {
-    const dir = zval;
-    const mag = Math.abs(dir);
-    if (!isFinite(dir)) return;
-    let impact: string;
-    if (worseWhenPositive) {
-      if (dir > 0.5) impact = `${label} higher than baseline (↑) — contributes to higher risk.`;
-      else if (dir < -0.5) impact = `${label} lower than baseline (↓) — contributes to lower risk.`;
-      else impact = `${label} near baseline — minimal effect.`;
-    } else {
-      if (dir > 0.5) impact = `${label} higher than baseline (↑) — contributes to lower risk.`;
-      else if (dir < -0.5) impact = `${label} lower than baseline (↓) — contributes to higher risk.`;
-      else impact = `${label} near baseline — minimal effect.`;
-    }
-    items.push({ feature: label, z: mag, impact });
-  };
+  const items: string[] = [];
+  const zval = (k: string) => Number.isFinite(z[k]) ? (z[k] as number) : 0;
 
-  // Map our canonical z keys to readable labels
-  push("hrv_mean", z["hrv_mean_z"] ?? 0, false, "HRV");
-  push("rhr_mean", z["rhr_mean_z"] ?? 0, true, "Resting Heart Rate");
-  push("sleep_hours", z["sleep_hours_z"] ?? 0, false, "Sleep Duration");
-  push("steps", z["steps_z"] ?? 0, false, "Daily Steps");
+  // HRV lower than baseline → higher risk (z- better)
+  const hrv = zval("hrv_mean_z");
+  items.push(hrv > 0.5 ? "HRV higher than baseline (↑) — contributes to lower risk."
+    : hrv < -0.5 ? "HRV lower than baseline (↓) — contributes to higher risk."
+    : "HRV near baseline — minimal effect.");
 
-  items.sort((a, b) => b.z - a.z);
-  return items.slice(0, 4).map(i => i.impact);
+  // RHR higher than baseline → higher risk (z+ worse)
+  const rhr = zval("rhr_mean_z");
+  items.push(rhr > 0.5 ? "Resting Heart Rate higher than baseline (↑) — contributes to higher risk."
+    : rhr < -0.5 ? "Resting Heart Rate lower than baseline (↓) — contributes to lower risk."
+    : "Resting Heart Rate near baseline — minimal effect.");
+
+  // Sleep z- (lower → higher risk)
+  const slp = zval("sleep_hours_z");
+  items.push(slp > 0.5 ? "Sleep Duration higher than baseline (↑) — contributes to lower risk."
+    : slp < -0.5 ? "Sleep Duration lower than baseline (↓) — contributes to higher risk."
+    : "Sleep Duration near baseline — minimal effect.");
+
+  // Steps z- (lower → higher risk)
+  const stp = zval("steps_z");
+  items.push(stp > 0.5 ? "Daily Steps higher than baseline (↑) — contributes to lower risk."
+    : stp < -0.5 ? "Daily Steps lower than baseline (↓) — contributes to higher risk."
+    : "Daily Steps near baseline — minimal effect.");
+
+  return items;
 }
 
 export async function GET(req: Request) {
@@ -52,36 +44,40 @@ export async function GET(req: Request) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  // latest risk row
-  const { data, error } = await supabase
+  // latest risk
+  const { data: row, error } = await supabase
     .from("risk_scores")
     .select("day,risk_score,model_version,features")
     .eq("user_id", user)
     .order("day", { ascending: false })
     .limit(1)
     .maybeSingle();
-
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (!data) return NextResponse.json({ message: "no risk rows" });
+  if (!row) return NextResponse.json({ message: "no risk rows" });
 
-  const row = data as Row;
   let reasons: string[] = [];
   try {
     const feats = typeof row.features === "string" ? JSON.parse(row.features) : row.features;
     reasons = explainFromZ(feats?.z ?? {});
   } catch {}
 
-  // Optional: If you later upload SHAP/fallback images to Supabase Storage, include a URL here.
-  // For now, we leave imageUrl undefined.
-  const payload = {
+  // latest image (<= same day)
+  const { data: img } = await supabase
+    .from("explainability_images")
+    .select("img_url, day")
+    .eq("user_id", user)
+    .lte("day", row.day)
+    .order("day", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return NextResponse.json({
     day: row.day,
     riskPercent: toPct(row.risk_score),
     modelVersion: row.model_version,
     reasons,
-    imageUrl: undefined as string | undefined,
+    imageUrl: img?.img_url ?? undefined,
     disclaimer:
-      "This is a non-diagnostic AI indicator for preventive context and clinician discussion only."
-  };
-
-  return NextResponse.json(payload);
+      "This is a non-diagnostic AI indicator intended for preventive context and clinician discussion only."
+  });
 }
