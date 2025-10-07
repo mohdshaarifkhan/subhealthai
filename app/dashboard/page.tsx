@@ -10,7 +10,7 @@ type Explain = {
   reasons: string[]; imageUrl?: string; disclaimer: string;
 };
 
-const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001"; // TODO: swap with session user
+const DEMO_USER_ID = "b2ea6462-6916-43d1-9c36-50d040ad8dc0"; // TODO: swap with session user
 
 function RiskBadge({ score }: { score: number }) {
   const pct = Math.round(Math.max(0, Math.min(1, score)) * 100);
