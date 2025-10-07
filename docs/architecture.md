@@ -1,36 +1,52 @@
-# SubHealthAI – Architecture (MVP)
+# SubHealthAI – Architecture (MVP + ML Extension)
 
 This document describes the **data flow, schema, and system jobs** of the SubHealthAI MVP, 
 illustrating how wearable and lifestyle data moves through ingestion, analysis, AI summarization, 
-and explainability pipelines.
+risk modeling, and explainability pipelines.
+
+---
 
 ## Data Flow
 1. **Ingest → `events_raw`** (wearables, lifestyle logs, CSV)
 2. **Daily Rollup → `metrics`** (HRV, RHR, sleep minutes, steps)
-3. **Flagging Engine → `flags`** (rules now; ML next)
-4. **Weekly Notes (LLM) → `weekly_notes`** (explainable summaries with guardrails)
-5. **Audit Trail → `audit_log`** (transparency for every automated action)
+3. **Flagging Engine → `flags`** (rule-based risk signals)
+4. **Weekly Notes (LLM) → `weekly_notes`** (plain-language summaries)
+5. **Risk Modeling (Python ML) → `risk_scores`** (scikit-learn + PyTorch)
+6. **Explainability Outputs → `explainability_images`** (SHAP & fallback plots)
+7. **Audit Trail → `audit_log`** (transparency for all automated actions)
 
-**System Flow (at a glance)** 
-events_raw → metrics → flags → weekly_notes → exports (PDF/email) → audit_log
+**System Flow (at a glance)**  
+- events_raw → metrics → flags → weekly_notes → risk_scores → explainability_images → audit_log
+
+---
 
 ## Jobs / Scripts
 - `scripts/load_mock_metrics.py` – seed/demo data
-- `scripts/flagging_engine.py` – Python rule-based flags
-- `scripts/compute_flag.ts` – TypeScript parity of rule-based flags
-- (Planned) Supabase Edge Function (cron) – nightly rollup `events_raw → metrics`
+- `scripts/flagging_engine.py` – Python rule-based flag computation
+- `scripts/compute_flag.ts` – TypeScript parity version
+- `ml/baseline_model.py` – anomaly detection using scikit-learn
+- `ml/forecast_model.py` – time-series GRU forecaster (PyTorch)
+- `ml/explainability.py` – SHAP + Ridge fallback explainability
+- **Supabase Cron / GitHub Action** – nightly rollup & risk model execution
+
+---
 
 ## Core Tables
-- `users`
-- `events_raw`
-- `metrics`
-- `flags`
-- `weekly_notes`
-- `audit_log`
+- `users` — user profiles  
+- `events_raw` — ingested raw wearable + lifestyle data  
+- `metrics` — rolled-up daily metrics (sleep, HRV, HR, steps)  
+- `flags` — rule-based early warning signals  
+- `weekly_notes` — AI-generated summaries (LLM outputs)  
+- `risk_scores` — ML risk predictions per user per day  
+- `explainability_images` — stored SHAP plots and fallback feature bars  
+- `audit_log` — complete trace of AI and ML actions  
+
+---
 
 ## Roadmap Extensions
-- Wearable API integrations (Fitbit, Oura, Apple Health, WHOOP)  
-  → SubHealthAI ingests device metrics but focuses on **cross-signal integration and explainable early warning flags**, not duplicating device dashboards.  
-- ML models for anomaly detection & embeddings  
-- Optional lab inputs (CRP, HbA1c, Vitamin D)  
-- FHIR/EHR integration for clinical pilots
+- **Wearable APIs:** Fitbit, Oura, Garmin, Apple Health, WHOOP  
+- **Optional lab inputs:** CRP, HbA1c, Vitamin D  
+- **ML roadmap:** anomaly detection, GRU forecasting, multimodal fusion  
+- **EHR integration:** HL7 FHIR APIs for clinical interoperability  
+- **Federated learning:** privacy-preserving personalization  
+- **Compliance:** HIPAA alignment, explainability tracking, versioned models  
