@@ -41,7 +41,10 @@ SubHealthAI addresses this gap by turning fragmented consumer health data into *
   - It provides structured early signals to assist clinicians today, with a long-term vision of empowering individuals under physician oversight.  
 
 - **Compliance-first**  
-  - HIPAA alignment, FDA digital health guidelines, and privacy-by-design principles are core to the system’s roadmap.  
+  - HIPAA alignment, FDA digital health guidelines, and privacy-by-design principles are core to the system’s roadmap.
+
+**Figure 1: SubHealthAI Architecture Overview**  
+![Architecture Overview](./docs/subhealthai_architecture.png)
 
 ---
 
@@ -51,7 +54,16 @@ SubHealthAI addresses this gap by turning fragmented consumer health data into *
 - **Analysis engine**: computes metrics and applies flag rules.  
 - **AI layer**: LLM wrapper with strict guardrails generates weekly notes and clinician-ready reports.  
 - **Export**: dashboard, PDF, email.  
-- **Audit log**: tracks all flags and outputs for transparency.  
+- **Audit log**: tracks all flags and outputs for transparency. 
+
+**Figure 2: Live Dashboard View (Overview)**  
+![Dashboard Screenshot 1](./screenshots/dashboard_1.png)  
+*Demonstrates SubHealthAI’s clinician-friendly dashboard summarizing user metrics and AI insights.*
+
+**Figure 3: Dashboard Trends and Metrics Visualization**  
+![Dashboard Screenshot 2](./screenshots/dashboard_2.png)  
+![Dashboard Screenshot 3](./screenshots/dashboard_3.png)  
+*Shows 7-day trend visualizations for HRV, sleep, and step metrics.*
 
 ---
 
