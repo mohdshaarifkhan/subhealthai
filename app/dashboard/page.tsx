@@ -22,6 +22,15 @@ function RiskBadge({ score }: { score: number }) {
   );
 }
 
+function LabeledStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col">
+      <span className="text-xs text-gray-500">{label}</span>
+      <span className="text-sm font-medium">{value}</span>
+    </div>
+  );
+}
+
 function fmt(dt?: string | null) {
   return dt ? new Date(dt).toLocaleString() : ''
 }
@@ -58,6 +67,21 @@ export default function Dashboard() {
     fetchData()
   }, [today]);
 
+  // pick latest baseline (today or latest past)
+  const latestBaseline = [...riskSeries]
+    .filter(r => r.model_version?.startsWith("baseline"))
+    .sort((a,b) => a.day.localeCompare(b.day))
+    .at(-1);
+
+  // pick a forecast for tomorrow if present
+  const tomorrowISO = new Date(Date.now() + 24*60*60*1000).toISOString().slice(0,10);
+  const forecastTomorrow = riskSeries.find(
+    r => r.model_version?.startsWith("forecast") && r.day === tomorrowISO
+  );
+
+  // simple spark bars from the last 14 risk points (any model)
+  const spark = riskSeries.slice(-14);
+
   const metricsAsc = metrics.slice().reverse()
 
   const sleepData = metricsAsc.map((m: any) => ({
@@ -82,36 +106,72 @@ export default function Dashboard() {
         </a>
       </div>
 
-      {/* ===== AI Risk (new) ===== */}
+      {/* ===== AI Risk (non-diagnostic) ===== */}
       <section>
-        <h2 className="text-xl font-medium mb-3">AI Risk (non-diagnostic)</h2>
+        <h2 className="text-xl font-medium mb-3">
+          AI Risk (non-diagnostic)
+          <span className="ml-2 text-xs text-gray-500">
+            based on HRV, RHR, Sleep, Steps
+          </span>
+        </h2>
 
-        <div className="bg-gray-50 p-6 rounded-2xl border space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-600">
-              {riskSeries.length
-                ? <>Latest: <span className="font-medium">{riskSeries[riskSeries.length - 1].day}</span> • Model: <code>{riskSeries[riskSeries.length - 1].model_version}</code></>
-                : "No risk data yet."}
+        <div className="rounded-2xl border bg-white p-4 space-y-4">
+          {/* Top row: Baseline vs Forecast side by side */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="rounded-xl border p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Latest Baseline</span>
+                {latestBaseline && <RiskBadge score={latestBaseline.risk_score} />}
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-3">
+                <LabeledStat label="Date" value={latestBaseline ? latestBaseline.day : "—"} />
+                <LabeledStat label="Model" value={latestBaseline ? latestBaseline.model_version : "—"} />
+              </div>
+              {latestBaseline && (
+                <div className="mt-2 text-xs">
+                  Anomaly vs baseline:&nbsp;
+                  <span className="font-medium">
+                    {latestBaseline.risk_score >= 0.66 ? "High" :
+                     latestBaseline.risk_score >= 0.33 ? "Moderate" : "Low"}
+                  </span>
+                </div>
+              )}
             </div>
-            {riskSeries.length ? <RiskBadge score={riskSeries[riskSeries.length - 1].risk_score} /> : null}
+
+            <div className="rounded-xl border p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Tomorrow (Forecast)</span>
+                {forecastTomorrow && <RiskBadge score={forecastTomorrow.risk_score} />}
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-3">
+                <LabeledStat label="Date" value={forecastTomorrow ? forecastTomorrow.day : "—"} />
+                <LabeledStat label="Model" value={forecastTomorrow ? forecastTomorrow.model_version : "—"} />
+              </div>
+              {!forecastTomorrow && (
+                <div className="mt-2 text-xs text-gray-500">No forecast available yet.</div>
+              )}
+            </div>
+
+            {/* Sparkline substitute */}
+            <div className="rounded-xl border p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">14-day Trend</span>
+                {latestBaseline && <RiskBadge score={latestBaseline.risk_score} />}
+              </div>
+              <div className="mt-2 flex items-end gap-1 h-16">
+                {spark.map((r, i) => (
+                  <div key={i}
+                    title={`${r.day}: ${(r.risk_score*100).toFixed(0)}% (${r.model_version})`}
+                    className="w-2 bg-gray-200 rounded-sm"
+                    style={{ height: `${8 + r.risk_score * 56}px` }}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
 
-          {/* quick mini-bars as a sparkline substitute */}
-          {riskSeries.length > 1 && (
-            <div className="mt-3 flex items-end gap-1 h-16">
-              {riskSeries.map((r, i) => (
-                <div
-                  key={i}
-                  title={`${r.day}: ${(r.risk_score * 100).toFixed(0)}%`}
-                  className="w-2 bg-gray-200 rounded-sm"
-                  style={{ height: `${8 + r.risk_score * 56}px` }}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Explainability bullets + image */}
-          <div className="mt-4">
+          {/* Explainability */}
+          <div>
             <h4 className="font-medium mb-2">Why this score?</h4>
             {exp ? (
               <>
@@ -119,14 +179,27 @@ export default function Dashboard() {
                   Latest: <span className="font-medium">{exp.day}</span> • Model: <code>{exp.modelVersion}</code> • Risk: <span className="font-medium">{exp.riskPercent}%</span>
                 </div>
                 <ul className="mt-2 list-disc pl-5 space-y-1 text-sm">
-                  {exp.reasons?.length ? exp.reasons.map((r, i) => <li key={i}>{r}</li>) : <li>No major deviations from baseline detected.</li>}
+                  {exp.reasons?.length
+                    ? exp.reasons.map((r, i) => <li key={i}>{r}</li>)
+                    : <li>No major deviations from baseline detected.</li>}
                 </ul>
                 {exp.imageUrl && (
                   <div className="mt-4">
                     <img src={exp.imageUrl} alt="Explainability plot" className="rounded-lg border max-w-full" />
                   </div>
                 )}
-                <p className="mt-4 text-xs text-gray-500">{exp.disclaimer}</p>
+
+                {/* Mini glossary aids (no claims, pure definitions) */}
+                <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs text-gray-600">
+                  <div title="Beats per minute — overall cardiovascular load."><span className="font-medium">HR</span>: Heart Rate</div>
+                  <div title="Average HR at rest — higher can reflect stress or strain."><span className="font-medium">RHR</span>: Resting Heart Rate</div>
+                  <div title="Beat-to-beat variation — lower can reflect stress/fatigue."><span className="font-medium">HRV</span>: Heart Rate Variability</div>
+                  <div title="Estimated nightly sleep duration."><span className="font-medium">Sleep Hours</span></div>
+                </div>
+
+                <p className="mt-3 text-xs text-gray-500">
+                  This section provides non-diagnostic AI indicators intended for preventive context and clinician discussion only.
+                </p>
               </>
             ) : (
               <div className="text-sm text-gray-600">Loading…</div>
