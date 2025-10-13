@@ -98,26 +98,40 @@ attorneys, clinicians, and adjudicators reviewing preventive AI systems.
 
 ## 🖼 Architecture
 
-![SubHealthAI Architecture](./docs/subhealthai_architecture.png)
+![Architecture Version 1.0, October 2025](./docs/screenshots/subhealthai_architecture.png)
 
 ```text
-[Wearables APIs]   [Lifestyle Inputs]
-        │                   │
-        ▼                   ▼
-     Data Ingestion (Cron jobs, ETL)
-                │
-                ▼
-        Supabase Database
-   (users, events, metrics, flags)
-                │
-                ▼
-   Flag Computation Engine (rule-based)
-                │
-                ▼
-   AI Layer (LLM wrappers for weekly note)
-                │
-                ▼
-    Reports → Dashboard / PDF / Email
+[Wearable APIs]       [Lifestyle Inputs]       [Lab / Imaging Data*]
+      │                      │                         │
+      └──────────────┬────────┴──────────────┬──────────┘
+                     ▼
+           Data Ingestion Layer
+           (Cron Jobs, ETL, API Sync)
+                     │
+                     ▼
+            Supabase Database
+     (users, metrics, flags, risk_scores,
+      explainability_images, audit_log)
+                     │
+                     ▼
+        Health Analytics & Flag Engine
+      (Rule-based flags + Metric baseline)
+                     │
+                     ▼
+      ML Risk Models (Isolation Forest,
+          GRU Forecast, SHAP Explainability)
+                     │
+                     ▼
+     AI Layer (LLM Wrapper + Preventive Copilot)
+      - Generates Weekly Notes
+      - Explains Risk Trends
+      - Conversational Interpretation
+                     │
+                     ▼
+         Reports & Visualization Outputs
+      → User Dashboard (Next.js)
+      → Clinician PDF / Email Report
+      → Audit Log for Transparency
 ```
 ---
 
