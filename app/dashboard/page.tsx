@@ -1,6 +1,7 @@
 // app/dashboard/page.tsx
 'use client'
 import { useState, useEffect } from "react"
+import Image from 'next/image'
 import { supabase } from '../../lib/supabase'
 import Trendchart from '../../components/TrendChart'
 
@@ -40,6 +41,7 @@ export default function Dashboard() {
   const [exp, setExp] = useState<Explain | null>(null);
   const [metrics, setMetrics] = useState<any[]>([]);
   const [flags, setFlags] = useState<any[]>([]);
+  const [explainabilityImageUrl, setExplainabilityImageUrl] = useState<string | null>(null);
   const today = new Date().toISOString().slice(0, 10)
 
   // Load all data
@@ -63,6 +65,17 @@ export default function Dashboard() {
         .eq('day', today)
         .order('created_at', { ascending: false })
       setFlags(flagsData ?? [])
+
+      // Fetch explainability image via API (bypasses RLS)
+      try {
+        const res = await fetch("/api/explainability/latest", { cache: "no-store" });
+        const { url } = await res.json();
+        console.log("Explainability image URL:", url);
+        setExplainabilityImageUrl(url ?? null);
+      } catch (err) {
+        console.error("Failed to fetch explainability image:", err);
+        setExplainabilityImageUrl(null);
+      }
     }
     fetchData()
   }, [today]);
@@ -191,9 +204,27 @@ export default function Dashboard() {
                     ? exp.reasons.map((r, i) => <li key={i}>{r}</li>)
                     : <li>No major deviations from baseline detected.</li>}
                 </ul>
-                {exp.imageUrl && (
-                  <div className="mt-4">
-                    <img src={exp.imageUrl} alt="Explainability plot" className="rounded-lg border max-w-full" />
+                {explainabilityImageUrl && (
+                  <div className="mt-6">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2">
+                      Feature Contribution (Explainability Plot)
+                    </h3>
+                    <div className="text-xs text-gray-400 mb-2">URL: {explainabilityImageUrl}</div>
+                    <img
+                      src={explainabilityImageUrl}
+                      alt="Explainability SHAP Plot"
+                      width={650}
+                      height={400}
+                      className="rounded-lg border border-gray-200 shadow-sm"
+                    />
+                    <p className="text-xs text-gray-500 mt-2">
+                      SHAP visualization showing feature influence on current risk prediction.
+                    </p>
+                  </div>
+                )}
+                {!explainabilityImageUrl && (
+                  <div className="mt-4 text-xs text-gray-400">
+                    No explainability image available.
                   </div>
                 )}
 
