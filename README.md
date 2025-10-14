@@ -256,7 +256,7 @@ Key tables in `/supabase/schema.sql`:
 - [ ] HL7 FHIR integration for clinician/EHR interoperability  
 - [ ] Pilot testing with clinical advisors under HIPAA/FDA digital health alignment  
 - [ ] Patent filing: **“System and Method for Subclinical Risk Flagging and Explainable AI Summaries”**
-- - [ ] Long-term goal: evolve from preventive intelligence to clinically validated, FDA-aligned diagnostic support following the SaMD (Software as a Medical Device) compliance roadmap.
+- [ ] Long-term goal: evolve from preventive intelligence to clinically validated, FDA-aligned diagnostic support following the SaMD (Software as a Medical Device) compliance roadmap.
 
 ---
 
