@@ -173,7 +173,37 @@ SubHealthAI addresses this gap by turning fragmented consumer health data into *
 
 ---
 
-## 11. Appendix
+## 11. Path Toward Diagnostic-Grade AI
+
+While SubHealthAI currently functions as a preventive, non-diagnostic intelligence system,
+its architecture is intentionally designed for future transition into validated clinical decision-support
+and, ultimately, diagnostic use.  
+This evolution follows established FDA “Software as a Medical Device” (SaMD) principles
+and adheres to IEC 62304 life-cycle standards.
+
+### 11.1 Roadmap Overview
+
+| Phase | Description | Technical Focus | Regulatory Alignment |
+|--------|--------------|-----------------|----------------------|
+| **Phase I – Preventive Insight (Current)** | Detects subclinical dysfunction and early deviations from baseline | Isolation Forest + GRU + SHAP pipeline with auditable outputs | FDA Wellness Guidance (non-diagnostic) |
+| **Phase II – Clinical Decision Support** | Generates structured summaries aiding clinician interpretation | Clinician feedback loop, calibration metrics, lab-linked validation dataset | FDA CDS (Class II pre-submission) |
+| **Phase III – Diagnostic AI System** | Performs validated diagnostic inference for early-stage conditions | Prospective trials, ROC/AUC benchmarking, bias & safety testing | FDA SaMD 510(k)/De Novo pathway |
+
+### 11.2 Implementation Principles
+- **Auditability by design:** model versions, data provenance, and run logs already established via `audit_log`.  
+- **Explainability continuity:** dynamic SHAP and linear surrogate models remain central to ensure transparent reasoning.  
+- **Data governance:** privacy-preserving pipelines and encryption allow future IRB-approved clinical studies.  
+- **Scalability:** modular API contracts and model registries support regulatory documentation and traceability.  
+
+### 11.3 Long-Term Vision
+SubHealthAI’s preventive foundation enables a smooth progression toward
+FDA-aligned diagnostic support once sufficient clinical evidence and labeling data are collected.
+This ensures that preventive analytics today become the foundation
+for tomorrow’s validated diagnostic AI ecosystem.
+
+---
+
+## 12. Appendix
 - Model architecture diagrams (baseline + forecast).
 - Example Supabase schema.
 - GitHub Actions YAML (nightly ML automation).
