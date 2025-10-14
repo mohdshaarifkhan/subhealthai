@@ -214,6 +214,7 @@ Key tables in `/supabase/schema.sql`:
 ---
 
 ## 📈 Roadmap
+
 **✅ MVP (Completed)**  
 - [x] Project scaffold: Next.js + Supabase + TailwindCSS  
 - [x] Core database schema (`users`, `events_raw`, `metrics`, `flags`, `weekly_notes`, `audit_log`)  
@@ -228,21 +229,33 @@ Key tables in `/supabase/schema.sql`:
 - [x] **Interactive Risk Dashboard (sparkline + “Why this score?” modal)**  
 - [x] Nightly GitHub Actions for automated ML cron jobs  
 
-**🚧 Phase 2 (In Progress)**  
-- [ ] Integrate risk summaries into weekly PDF with disclaimer block  
-- [ ] Add Admin “Recompute” endpoint (manual ML re-run via API)  
-- [ ] Supabase Storage upload for SHAP/fallback visuals + display in dashboard modal  
-- [ ] Transactional email delivery (send report to clinician)  
-- [ ] Expanded audit logs for ML model transparency & compliance  
+**✅ Phase 2 (Completed)**  
+- [x] Integrated risk summaries into weekly PDF with disclaimer block  
+- [x] Added Admin “Recompute” endpoint (manual ML re-run via API)  
+- [x] Supabase Storage for SHAP/fallback visuals with dashboard display  
+- [x] Transactional email delivery (clinician report distribution)  
+- [x] Expanded audit logs for ML transparency & compliance  
+
+**🧠 Phase 3 (Next) — Preventive Intelligence Expansion (2025–2026)**  
+- [ ] Dynamic SHAP visualization (Apple Health / Samsung Health / WHOOP–style graphs)  
+- [ ] Expanded metric set: stress markers, jet-lag indicators, medication logs, circadian rhythm & recovery metrics  
+- [ ] Adaptive thresholds and personalized baseline recalibration  
+- [ ] NanoChat-style LLM orchestration for contextual summaries  
+  - Prefill/decode + KV cache for low-latency inference  
+  - Sandboxed Python tool use for in-context computations (risk, forecast, explainability)  
+- [ ] Lightweight Preventive Copilot: “Why risk changed?” and “What improved?” contextual insights  
+- [ ] Evaluation harness inspired by ARC/MMLU for accuracy and interpretability benchmarking on health datasets  
+- [ ] JSON-based tool contracts, safety guardrails, and transparent router policies  
+- [ ] Lightweight SFT for tone and style consistency in clinician summaries  
 
 **🔬 Research & Clinical Roadmap (2026+)**  
-- [ ] Wearable API integrations (Fitbit, Oura, Garmin, Apple Health)  
+- [ ] Wearable API integrations (Fitbit, Oura, Garmin, Apple Health, WHOOP)  
 - [ ] Personalized baseline deviation engine (adaptive thresholds per user)  
 - [ ] Multimodal risk scoring with lab + lifestyle data (CRP, HbA1c, Vitamin D)  
 - [ ] Embedding models for cross-signal correlation (HRV ↔ sleep debt ↔ recovery lag)  
 - [ ] HL7 FHIR integration for clinician/EHR interoperability  
 - [ ] Pilot testing with clinical advisors under HIPAA/FDA digital health alignment  
-- [ ] Patent filing: **“System and Method for Subclinical Risk Flagging and Explainable AI Summaries”** 
+- [ ] Patent filing: **“System and Method for Subclinical Risk Flagging and Explainable AI Summaries”**
 
 ---
 
