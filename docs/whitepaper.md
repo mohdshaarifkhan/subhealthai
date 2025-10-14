@@ -44,7 +44,11 @@ SubHealthAI addresses this gap by turning fragmented consumer health data into *
   - HIPAA alignment, FDA digital health guidelines, and privacy-by-design principles are core to the system’s roadmap.
 
 **SubHealthAI Architecture Overview**  
-![Architecture Overview](./subhealthai_architecture.png)
+![Architecture Overview](./screenshots/subhealthai_architecture.png)
+
+**Data Flow and Report Generation Process**  
+![Pipeline Architecture](./screenshots/ai_healthrisk_pipeline.png)  
+*Illustrates how data flows from ingestion and preprocessing through ML risk computation, explainability, report generation, and audit logging.*
 
 ---
 

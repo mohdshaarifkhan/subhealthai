@@ -133,6 +133,12 @@ attorneys, clinicians, and adjudicators reviewing preventive AI systems.
       → Clinician PDF / Email Report
       → Audit Log for Transparency
 ```
+
+This diagram illustrates SubHealthAI’s end-to-end data flow, showing how wearable and lifestyle metrics are ingested, processed, and transformed into explainable, auditable risk insights.
+
+![AI Health Risk Pipeline Architecture](./docs/screenshots/ai_healthrisk_pipeline.png)
+*End-to-end data flow with explainability and audit compliance.*
+
 ---
 
 You can test SubHealthAI locally in 60 seconds:
