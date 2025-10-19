@@ -3,6 +3,7 @@
 SubHealthAI is an **AI-powered preventive health project currently in development**.  
 Its purpose is to analyze wearable and lifestyle data to identify **early warning signals** and **subclinical patterns** that often go unnoticed in traditional healthcare.  
 The goal is not to provide a medical diagnosis, but to **support physicians today** with a long-term vision of **empowering individuals under physician oversight** by surfacing trends that may warrant preventive attention.
+The project is in active research and early validation stages following publication of its technical whitepaper on **Zenodo** (DOI: [10.5281/zenodo.17388335](https://doi.org/10.5281/zenodo.17388335)).
 
 ---
 
@@ -273,13 +274,23 @@ Planned integrations include:
 
 ---
 
-## 📄 Whitepaper  
-See `/docs/whitepaper.md` for the full research framing:  
-- U.S. healthcare burden of chronic illness  
-- Gaps in early detection and subclinical dysfunction  
-- SubHealthAI’s proposed solution architecture  
-- Methods, safeguards, and compliance framing  
-- Roadmap for clinical validation and future deployment
+## 📄 Research Publication
+
+The technical research behind SubHealthAI has been formally published as a preprint on **Zenodo**:
+
+**“SubHealthAI: Predictive and Explainable AI for Early Detection of Subclinical Health Decline”**  
+DOI: [10.5281/zenodo.17388335](https://doi.org/10.5281/zenodo.17388335)  
+Date: October 2025  
+
+This publication documents the SubHealthAI architecture, ML pipeline (Isolation Forest + GRU forecasting), SHAP-based explainability layer, and evaluation metrics (Precision 0.81 | Recall 0.76 | RMSE 0.12 | MAE 0.09).  
+
+A Google Scholar profile will be added once the paper is indexed for citation visibility.
+
+---
+
+## 🧾 Intellectual Property Notice
+A U.S. Provisional Patent titled **“System and Method for Explainable AI Detection of Subclinical Physiological Dysfunction”** has been filed with the USPTO (2025).  
+This establishes the intellectual property foundation for SubHealthAI’s explainable AI and risk-detection framework.
   
 ---
 
