@@ -3,6 +3,7 @@
 SubHealthAI is an **AI-powered preventive health project currently in development**.  
 Its purpose is to analyze wearable and lifestyle data to identify **early warning signals** and **subclinical patterns** that often go unnoticed in traditional healthcare.  
 The goal is not to provide a medical diagnosis, but to **support physicians today** with a long-term vision of **empowering individuals under physician oversight** by surfacing trends that may warrant preventive attention.
+The project is in active research and early validation stages following publication of its technical whitepaper on **Zenodo** (DOI: [10.5281/zenodo.17388335](https://doi.org/10.5281/zenodo.17388335)).
 
 ---
 
@@ -46,6 +47,29 @@ Turning fragmented signals into structured, explainable insights that support ea
 
 ---
 
+## 🧩 AI & Explainability Layer (New)
+
+SubHealthAI now includes a **machine learning and explainable AI pipeline** that enhances the preventive insights:
+
+1. **Baseline Model (scikit-learn)**  
+   - Detects daily deviations from a user’s personal baseline (HRV, Resting HR, Sleep, Steps).  
+   - Uses robust z-score normalization and Isolation Forests to compute a non-diagnostic risk score.  
+
+2. **Forecast Model (PyTorch)**  
+   - Learns time-series trends to forecast next-day risk changes.  
+   - Helps visualize improvement or deterioration before symptoms appear.  
+
+3. **Explainability (SHAP + Linear Surrogates)**  
+   - Generates feature importance visuals showing *why* the AI highlighted a risk.  
+   - Each explanation translates into plain English on the dashboard via the **“Why this score?”** modal.  
+   - Lawyers, clinicians, or reviewers can easily interpret risk factors without technical background.
+
+4. **Risk Scores Table (Supabase)**  
+   - Stores daily risk outputs with version tracking and full audit logs.  
+   - Includes rationale, z-scores, and disclaimers to ensure transparency and compliance.  
+
+---
+
 ## 🚀 What We’re Building (MVP)
 - **Data ingestion** from wearables, lifestyle tracking, and behavioral inputs  
 - **Signal flags**: rule-based indicators (e.g., sleep debt, HRV decline, elevated resting HR)  
@@ -57,29 +81,65 @@ This repository contains the **starter codebase**, database schema, and demo UI 
 
 ---
 
+## 🩺 User-Friendly Dashboard (Explainable UI)
+
+The new dashboard focuses on **clarity for clinicians, reviewers, and regulators**:
+
+- **Interactive Risk Card:** Displays current risk % with color-coded badge (green, yellow, red).  
+- **Sparkline Chart:** Visualizes the risk trend over time.  
+- **Explainability Modal (“Why this score?”):**  
+  - Lists plain-language reasons (e.g., “Resting Heart Rate higher than baseline — contributes to higher risk”).  
+  - Includes AI-generated visual (SHAP plot or fallback bar chart).  
+  - Adds a clear, non-diagnostic disclaimer.  
+
+All text is structured for **regulatory readability**, ensuring transparency and comprehension for  
+attorneys, clinicians, and adjudicators reviewing preventive AI systems.
+
+---
+
 ## 🖼 Architecture
 
-![SubHealthAI Architecture](./docs/subhealthai_architecture.png)
+![Architecture Version 1.0, October 2025](./docs/screenshots/subhealthai_architecture.png)
 
 ```text
-[Wearables APIs]   [Lifestyle Inputs]
-        │                   │
-        ▼                   ▼
-     Data Ingestion (Cron jobs, ETL)
-                │
-                ▼
-        Supabase Database
-   (users, events, metrics, flags)
-                │
-                ▼
-   Flag Computation Engine (rule-based)
-                │
-                ▼
-   AI Layer (LLM wrappers for weekly note)
-                │
-                ▼
-    Reports → Dashboard / PDF / Email
+[Wearable APIs]       [Lifestyle Inputs]       [Lab / Imaging Data*]
+      │                      │                         │
+      └──────────────┬────────┴──────────────┬──────────┘
+                     ▼
+           Data Ingestion Layer
+           (Cron Jobs, ETL, API Sync)
+                     │
+                     ▼
+            Supabase Database
+     (users, metrics, flags, risk_scores,
+      explainability_images, audit_log)
+                     │
+                     ▼
+        Health Analytics & Flag Engine
+      (Rule-based flags + Metric baseline)
+                     │
+                     ▼
+      ML Risk Models (Isolation Forest,
+          GRU Forecast, SHAP Explainability)
+                     │
+                     ▼
+     AI Layer (LLM Wrapper + Preventive Copilot)
+      - Generates Weekly Notes
+      - Explains Risk Trends
+      - Conversational Interpretation
+                     │
+                     ▼
+         Reports & Visualization Outputs
+      → User Dashboard (Next.js)
+      → Clinician PDF / Email Report
+      → Audit Log for Transparency
 ```
+
+This diagram illustrates SubHealthAI’s end-to-end data flow, showing how wearable and lifestyle metrics are ingested, processed, and transformed into explainable, auditable risk insights.
+
+![AI Health Risk Pipeline Architecture](./docs/screenshots/ai_healthrisk_pipeline.png)
+*End-to-end data flow with explainability and audit compliance.*
+
 ---
 
 You can test SubHealthAI locally in 60 seconds:
@@ -102,7 +162,11 @@ You can test SubHealthAI locally in 60 seconds:
 ## 🛠 Tech Stack
 **Frontend (App Layer)**  
 - Next.js (App Router), React, TypeScript  
-- TailwindCSS + shadcn/ui for responsive, clinician-friendly UI  
+- TailwindCSS + shadcn/ui for responsive, clinician-friendly UI
+- Risk dashboard with sparkline + “Why this score?” modal (`risk-panel.tsx`, `ExplainModal.tsx`, `RiskSpark.tsx`)  
+- API endpoints:  
+  - `/api/risk/explain` → human-readable reasoning + disclaimer  
+  - `/api/report` → clinician PDF including AI risk summary
 
 **Backend & Database**  
 - Supabase (Postgres with Row-Level Security, Auth, Storage)  
@@ -114,7 +178,14 @@ You can test SubHealthAI locally in 60 seconds:
 - Baseline deviation analysis (sleep, HR, HRV, steps)  
 - Hybrid rules + ML scoring engine (Python):  
   - scikit-learn → anomaly detection, clustering, baseline modeling  
-  - PyTorch → time-series forecasting and risk scoring  
+  - PyTorch → time-series forecasting and risk scoring
+
+  - **Explainable ML models (Python / Supabase Integration):**
+  - `/ml/baseline_model.py` → anomaly detection and personalized baseline risk  
+  - `/ml/forecast_model.py` → time-series forecasting of risk changes  
+  - `/ml/explainability.py` → SHAP visualizations and linear surrogate fallback  
+  - Outputs written to `risk_scores` table (auditable, versioned)
+  
 
 **AI & NLP Integration**  
 - LLMs (OpenAI GPT, Hugging Face transformers) for plain-language weekly notes  
@@ -144,31 +215,49 @@ Key tables in `/supabase/schema.sql`:
 ---
 
 ## 📈 Roadmap
-**MVP (In Progress)**  
+
+**✅ MVP (Completed)**  
 - [x] Project scaffold: Next.js + Supabase + TailwindCSS  
-- [x] Core schema design (users, events_raw, metrics, flags, weekly_notes, audit_log)  
+- [x] Core database schema (`users`, `events_raw`, `metrics`, `flags`, `weekly_notes`, `audit_log`)  
 - [x] Rule-based flagging engine (Python + TypeScript) with rationale strings  
-- [x] Demo dashboard UI (flags + weekly note preview)  
 - [x] CSV ingest + rollup pipeline for reproducible demo data  
-- [x] Charts on dashboard (sleep, HRV trends)  
-- [x] Cron API route (demo: daily flags + weekly note generation)  
-- [x] PDF export (clinician-ready demo report)  
-- [ ] Transactional email delivery (send report to clinician)
+- [x] Charts and metrics dashboard (sleep, HRV, steps trends)  
+- [x] Cron API route for daily flagging + weekly note generation  
+- [x] Clinician-ready PDF export with AI-generated summaries  
+- [x] **Baseline & Forecast ML models (scikit-learn + PyTorch)**  
+- [x] **Explainability layer (SHAP + fallback linear model)**  
+- [x] **Risk scoring table + Supabase integration**  
+- [x] **Interactive Risk Dashboard (sparkline + “Why this score?” modal)**  
+- [x] Nightly GitHub Actions for automated ML cron jobs  
 
-**Next Phase**  
-- [ ] Wearable API integrations (Fitbit, Oura, Garmin, Apple Health)  
-- [ ] Baseline deviation engine (personalized thresholds vs population averages)  
-- [ ] NLP-based weekly notes with schema guardrails + disclaimers (OpenAI/Hugging Face)  
-- [ ] Expanded audit logs for compliance transparency  
+**✅ Phase 2 (Completed)**  
+- [x] Integrated risk summaries into weekly PDF with disclaimer block  
+- [x] Added Admin “Recompute” endpoint (manual ML re-run via API)  
+- [x] Supabase Storage for SHAP/fallback visuals with dashboard display  
+- [x] Transactional email delivery (clinician report distribution)  
+- [x] Expanded audit logs for ML transparency & compliance  
 
-**Research & Clinical Roadmap (2026+)**  
-- [ ] Advanced ML models:  
-  - **scikit-learn** for anomaly detection, clustering, baselines  
-  - **PyTorch** for time-series forecasting and multimodal risk scoring  
+**🧠 Phase 3 (Next) — Preventive Intelligence Expansion (2025–2026)**  
+- [ ] Dynamic SHAP visualization (Apple Health / Samsung Health / WHOOP–style graphs)  
+- [ ] Expanded metric set: stress markers, jet-lag indicators, medication logs, circadian rhythm & recovery metrics  
+- [ ] Adaptive thresholds and personalized baseline recalibration  
+- [ ] NanoChat-style LLM orchestration for contextual summaries  
+  - Prefill/decode + KV cache for low-latency inference  
+  - Sandboxed Python tool use for in-context computations (risk, forecast, explainability)  
+- [ ] Lightweight Preventive Copilot: “Why risk changed?” and “What improved?” contextual insights  
+- [ ] Evaluation harness inspired by ARC/MMLU for accuracy and interpretability benchmarking on health datasets  
+- [ ] JSON-based tool contracts, safety guardrails, and transparent router policies  
+- [ ] Lightweight SFT for tone and style consistency in clinician summaries  
+
+**🔬 Research & Clinical Roadmap (2026+)**  
+- [ ] Wearable API integrations (Fitbit, Oura, Garmin, Apple Health, WHOOP)  
+- [ ] Personalized baseline deviation engine (adaptive thresholds per user)  
+- [ ] Multimodal risk scoring with lab + lifestyle data (CRP, HbA1c, Vitamin D)  
 - [ ] Embedding models for cross-signal correlation (HRV ↔ sleep debt ↔ recovery lag)  
 - [ ] HL7 FHIR integration for clinician/EHR interoperability  
-- [ ] Pilot testing with clinical advisors under HIPAA/FDA alignment  
-- [ ] Patent filing for “System and Method for Subclinical Risk Flagging and Explainable AI Summaries”  
+- [ ] Pilot testing with clinical advisors under HIPAA/FDA digital health alignment  
+- [ ] Patent filing: **“System and Method for Subclinical Risk Flagging and Explainable AI Summaries”**
+- [ ] Long-term goal: evolve from preventive intelligence to clinically validated, FDA-aligned diagnostic support following the SaMD (Software as a Medical Device) compliance roadmap.
 
 ---
 
@@ -185,13 +274,27 @@ Planned integrations include:
 
 ---
 
-## 📄 Whitepaper  
-See `/docs/whitepaper.md` for the full research framing:  
-- U.S. healthcare burden of chronic illness  
-- Gaps in early detection and subclinical dysfunction  
-- SubHealthAI’s proposed solution architecture  
-- Methods, safeguards, and compliance framing  
-- Roadmap for clinical validation and future deployment
+## 📄 Research Publication
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17388335.svg)](https://doi.org/10.5281/zenodo.17388335)
+
+The technical research behind **SubHealthAI** has been formally published as a preprint on **Zenodo**:
+
+**“SubHealthAI: Predictive and Explainable AI for Early Detection of Subclinical Health Decline”**  
+DOI: [10.5281/zenodo.17388335](https://doi.org/10.5281/zenodo.17388335)  
+Date: **October 2025**
+
+This publication details the SubHealthAI architecture, ML pipeline (Isolation Forest + GRU forecasting), SHAP-based explainability layer, and evaluation metrics *(Precision 0.81 | Recall 0.76 | RMSE 0.12 | MAE 0.09).*  
+
+📘 [Read the full whitepaper](whitepaper.md)
+
+*A Google Scholar profile will be added once the paper is indexed for citation visibility.*
+
+---
+
+## 🧾 Intellectual Property Notice
+A U.S. Provisional Patent titled **“System and Method for Explainable AI Detection of Subclinical Physiological Dysfunction”** has been filed with the USPTO (2025).  
+This establishes the intellectual property foundation for SubHealthAI’s explainable AI and risk-detection framework.
   
 ---
 
@@ -206,7 +309,7 @@ We welcome collaborators in:
 ## 📬 Contact
 - Founder: **Mohd Shaarif Khan**  
 - Email: **shaarifkhan12@gmail.com**
-- GitHub: **https://github.com/Shaarax**  
+- GitHub: **https://github.com/mohdshaarifkhan**  
 - LinkedIn: **www.linkedin.com/in/mohdshaarif-khan**  
 
 ---
