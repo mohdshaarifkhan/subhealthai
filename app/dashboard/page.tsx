@@ -1,9 +1,9 @@
 // app/dashboard/page.tsx
 'use client'
-import { useState, useEffect } from "react"
-import Image from 'next/image'
+import React, { useState, useEffect } from "react"
 import { supabase } from '../../lib/supabase'
 import Trendchart from '../../components/TrendChart'
+import { useEval } from '../hooks/useEval'
 
 type RiskRow = { day: string; risk_score: number; model_version: string };
 type Explain = {
@@ -41,8 +41,11 @@ export default function Dashboard() {
   const [exp, setExp] = useState<Explain | null>(null);
   const [metrics, setMetrics] = useState<any[]>([]);
   const [flags, setFlags] = useState<any[]>([]);
-  const [explainabilityImageUrl, setExplainabilityImageUrl] = useState<string | null>(null);
+  const [showModelEvaluation, setShowModelEvaluation] = useState(false);
   const today = new Date().toISOString().slice(0, 10)
+  
+  // Fetch evaluation metrics
+  const { data: evalData, error: evalError, isLoading: evalLoading } = useEval("phase3-v1", "all");
 
   // Load all data
   useEffect(() => {
@@ -65,17 +68,6 @@ export default function Dashboard() {
         .eq('day', today)
         .order('created_at', { ascending: false })
       setFlags(flagsData ?? [])
-
-      // Fetch explainability image via API (bypasses RLS)
-      try {
-        const res = await fetch("/api/explainability/latest", { cache: "no-store" });
-        const { url } = await res.json();
-        console.log("Explainability image URL:", url);
-        setExplainabilityImageUrl(url ?? null);
-      } catch (err) {
-        console.error("Failed to fetch explainability image:", err);
-        setExplainabilityImageUrl(null);
-      }
     }
     fetchData()
   }, [today]);
@@ -119,11 +111,195 @@ export default function Dashboard() {
   return (
     <div className="p-6 space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">SubHealthAI — Demo Dashboard</h1>
-        <a href="/api/report" className="inline-block px-3 py-2 rounded-lg border hover:bg-gray-50">
-          Download Demo PDF
-        </a>
+        <h1 className="text-2xl font-semibold">
+          {showModelEvaluation ? "SubHealthAI — Model Evaluation" : "SubHealthAI — Demo Dashboard"}
+        </h1>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowModelEvaluation(!showModelEvaluation)}
+            className="px-3 py-2 rounded-lg border hover:bg-gray-50 text-sm"
+          >
+            {showModelEvaluation ? "← Back to Individual Dashboard" : "Model Evaluation →"}
+          </button>
+          <a href="/api/report" className="inline-block px-3 py-2 rounded-lg border hover:bg-gray-50">
+            Download Demo PDF
+          </a>
+        </div>
       </div>
+
+      {showModelEvaluation ? (
+        <>
+          {evalError && (
+            <div className="p-4 text-red-600 bg-red-50 rounded-lg border border-red-200">
+              Failed to load metrics: {evalError.message || "Unknown error"}
+            </div>
+          )}
+          {evalLoading || !evalData ? (
+            <div className="p-4 text-gray-600">Loading evaluation metrics…</div>
+          ) : (
+            <>
+              {(() => {
+                const overall = evalData.overall || {};
+                const reliability = evalData.reliability ?? [];
+                const volSeries = evalData.volatility_series ?? [];
+                const leadHist = evalData.lead_time_hist ?? [];
+                const shapGlobal = evalData.shap_global ?? [];
+                
+                return (
+                  <div className="space-y-6">
+                    {/* Headline cards */}
+                    <div className="grid md:grid-cols-3 gap-4">
+                      <div className="rounded-xl border bg-white p-4">
+                        <div className="text-sm text-gray-600 mb-1">Brier Score</div>
+                        <div className="text-2xl font-semibold">
+                          {overall.brier?.toFixed(3) ?? '—'}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border bg-white p-4">
+                        <div className="text-sm text-gray-600 mb-1">ECE</div>
+                        <div className="text-2xl font-semibold">
+                          {overall.ece?.toFixed(3) ?? '—'}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border bg-white p-4">
+                        <div className="text-sm text-gray-600 mb-1">Volatility</div>
+                        <div className="text-2xl font-semibold">
+                          {overall.volatility?.toFixed(3) ?? '—'}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border bg-white p-4">
+                        <div className="text-sm text-gray-600 mb-1">Lead Time (mean)</div>
+                        <div className="text-2xl font-semibold">
+                          {overall.lead_time_days_mean?.toFixed(1) ?? '—'} days
+                        </div>
+                      </div>
+                      <div className="rounded-xl border bg-white p-4">
+                        <div className="text-sm text-gray-600 mb-1">Lead Time (p90)</div>
+                        <div className="text-2xl font-semibold">
+                          {overall.lead_time_days_p90?.toFixed(1) ?? '—'} days
+                        </div>
+                      </div>
+                      <div className="rounded-xl border bg-white p-4">
+                        <div className="text-sm text-gray-600 mb-1">Sample Size</div>
+                        <div className="text-2xl font-semibold">
+                          {overall.n_users ?? '—'} users, {overall.n_days ?? '—'} days
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Reliability Chart Section */}
+                    {reliability.length > 0 && (
+                      <section>
+                        <h2 className="text-xl font-medium mb-3">Reliability Curve</h2>
+                        <div className="rounded-xl border bg-white p-4">
+                          <div className="grid grid-cols-5 gap-2 text-xs mb-4">
+                            <div className="font-medium">Bin</div>
+                            <div className="font-medium">Predicted</div>
+                            <div className="font-medium">Observed</div>
+                            <div className="font-medium">Samples</div>
+                            <div className="font-medium">Difference</div>
+                          </div>
+                          <div className="space-y-2">
+                            {reliability.map((r: any, i: number) => (
+                              <div key={i} className="grid grid-cols-5 gap-2 text-sm border-t pt-2">
+                                <div>{r.bin?.toFixed(3) ?? '—'}</div>
+                                <div>{r.pred?.toFixed(3) ?? '—'}</div>
+                                <div>{r.obs?.toFixed(3) ?? '—'}</div>
+                                <div>{r.n ?? '—'}</div>
+                                <div className={Math.abs((r.pred ?? 0) - (r.obs ?? 0)) > 0.1 ? 'text-red-600' : 'text-green-600'}>
+                                  {((r.pred ?? 0) - (r.obs ?? 0)).toFixed(3)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </section>
+                    )}
+                    
+                    {/* Volatility Series */}
+                    {volSeries.length > 0 && (
+                      <section>
+                        <h2 className="text-xl font-medium mb-3">Volatility Over Time</h2>
+                        <div className="rounded-xl border bg-white p-4">
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b">
+                                  <th className="text-left p-2">Day</th>
+                                  <th className="text-left p-2">Mean Delta</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {volSeries.map((v: any, i: number) => (
+                                  <tr key={i} className="border-b">
+                                    <td className="p-2">{v.day}</td>
+                                    <td className="p-2">{v.mean_delta?.toFixed(4) ?? '—'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </section>
+                    )}
+                    
+                    {/* Lead Time Histogram */}
+                    {leadHist.length > 0 && (
+                      <section>
+                        <h2 className="text-xl font-medium mb-3">Lead Time Distribution</h2>
+                        <div className="rounded-xl border bg-white p-4">
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div className="font-medium">Days</div>
+                            <div className="font-medium">Count</div>
+                            {leadHist.map((h: any, i: number) => (
+                              <React.Fragment key={i}>
+                                <div className="border-t pt-2">{h.days}</div>
+                                <div className="border-t pt-2">{h.count}</div>
+                              </React.Fragment>
+                            ))}
+                          </div>
+                        </div>
+                      </section>
+                    )}
+                    
+                    {/* SHAP Global */}
+                    {shapGlobal.length > 0 && (
+                      <section>
+                        <h2 className="text-xl font-medium mb-3">Feature Importance (SHAP)</h2>
+                        <div className="rounded-xl border bg-white p-4">
+                          <div className="space-y-4">
+                            {shapGlobal.map((s: any, i: number) => {
+                              const maxShap = Math.max(...shapGlobal.map((x: any) => x.mean_abs_shap || 0));
+                              const width = maxShap > 0 ? ((s.mean_abs_shap || 0) / maxShap) * 100 : 0;
+                              return (
+                                <div key={i}>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="font-medium text-gray-800">{s.feature}</span>
+                                    <span className="text-sm font-semibold text-gray-700">
+                                      {s.mean_abs_shap?.toFixed(4) ?? '—'}
+                                    </span>
+                                  </div>
+                                  <div className="w-full bg-gray-200 rounded-full h-3">
+                                    <div
+                                      className="bg-blue-600 h-3 rounded-full transition-all"
+                                      style={{ width: `${width}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </section>
+                    )}
+                  </div>
+                );
+              })()}
+            </>
+          )}
+        </>
+      ) : (
+        <>
 
       {/* ===== AI Risk (non-diagnostic) ===== */}
       <section>
@@ -204,27 +380,35 @@ export default function Dashboard() {
                     ? exp.reasons.map((r, i) => <li key={i}>{r}</li>)
                     : <li>No major deviations from baseline detected.</li>}
                 </ul>
-                {explainabilityImageUrl && (
+                {/* Feature Contribution (SHAP) */}
+                {evalData?.shap_global && evalData.shap_global.length > 0 && (
                   <div className="mt-6">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-2">
-                      Feature Contribution (Explainability Plot)
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3">
+                      Feature Contribution (SHAP)
                     </h3>
-                    <div className="text-xs text-gray-400 mb-2">URL: {explainabilityImageUrl}</div>
-                    <img
-                      src={explainabilityImageUrl}
-                      alt="Explainability SHAP Plot"
-                      width={650}
-                      height={400}
-                      className="rounded-lg border border-gray-200 shadow-sm"
-                    />
-                    <p className="text-xs text-gray-500 mt-2">
-                      SHAP visualization showing feature influence on current risk prediction.
+                    <div className="space-y-3">
+                      {evalData.shap_global.map((s: any, i: number) => {
+                        const maxShap = Math.max(...evalData.shap_global.map((x: any) => x.mean_abs_shap || 0));
+                        const width = maxShap > 0 ? ((s.mean_abs_shap || 0) / maxShap) * 100 : 0;
+                        return (
+                          <div key={i}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-medium text-gray-700">{s.feature}</span>
+                              <span className="text-xs text-gray-600">{s.mean_abs_shap?.toFixed(4) ?? '—'}</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div
+                                className="bg-blue-600 h-2 rounded-full transition-all"
+                                style={{ width: `${width}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-3">
+                      Feature importance based on mean absolute SHAP values from model evaluation.
                     </p>
-                  </div>
-                )}
-                {!explainabilityImageUrl && (
-                  <div className="mt-4 text-xs text-gray-400">
-                    No explainability image available.
                   </div>
                 )}
 
@@ -333,6 +517,8 @@ export default function Dashboard() {
           ⚠️ Demo only — in production this runs automatically (nightly job).
         </p>
       </section>
+        </>
+      )}
     </div>
   )
 }

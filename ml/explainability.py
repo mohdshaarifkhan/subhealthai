@@ -5,10 +5,20 @@ Saves PNGs to /ml/outputs/shap_<user>_<date>.png
 
 import os, numpy as np, pandas as pd, datetime as dt
 import shap, matplotlib.pyplot as plt
-from ml.config import supabase
+from typing import Dict, List
+from ml.config import supabase, WEIGHTS_V1
 
 OUT_DIR = os.path.join(os.path.dirname(__file__), "outputs")
 os.makedirs(OUT_DIR, exist_ok=True)
+
+def linear_contributions(features: Dict[str, float], weights: Dict[str, float] = WEIGHTS_V1) -> List[Dict]:
+    return [
+        {"feature": "hrv",            "value": features.get("z_hrv", 0.0),        "delta_raw": round(weights["w_hrv"] * (-features.get("z_hrv",0.0)),4), "sign":"-"},
+        {"feature": "rhr",            "value": features.get("z_rhr", 0.0),        "delta_raw": round(weights["w_rhr"] * ( features.get("z_rhr",0.0)),4), "sign":"+"},
+        {"feature": "sleep_debt",     "value": features.get("z_sleep_debt", 0.0), "delta_raw": round(weights["w_sleep"]* ( features.get("z_sleep_debt",0.0)),4), "sign":"+"},
+        {"feature": "anomaly",        "value": features.get("anomaly", 0.0),      "delta_raw": round(weights["w_anom"] * ( features.get("anomaly",0.0)),4), "sign":"+"},
+        {"feature": "forecast_delta", "value": features.get("forecast_delta",0.0),"delta_raw": round(weights["w_fcast"]* ( features.get("forecast_delta",0.0)),4), "sign":"+"},
+    ]
 
 FEATS = ["hrv_mean","rhr_mean","sleep_hours","steps"]
 NAMES = ["HRV(z-)","RHR(z+)","Sleep(z-)","Steps(z-)"]

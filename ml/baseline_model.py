@@ -14,11 +14,28 @@ import argparse, math, json, datetime as dt
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest
-from ml.config import supabase, MODEL_VERSION_BASELINE
+from typing import Dict
+from ml.config import supabase, MODEL_VERSION_BASELINE, WEIGHTS_V1
 
 # Canonical features used internally
 CANONICAL = ["hrv_mean", "rhr_mean", "sleep_hours", "steps"]
 FEATURES = CANONICAL
+
+def _sigmoid(x: float) -> float:
+    return 1.0 / (1.0 + math.exp(-x))
+
+def score_features(features: Dict[str, float], weights: Dict[str, float] = WEIGHTS_V1):
+    raw = (
+        weights["b0"]
+        + weights["w_hrv"] * (-features.get("z_hrv", 0.0))
+        + weights["w_rhr"] * ( features.get("z_rhr", 0.0))
+        + weights["w_sleep"]* ( features.get("z_sleep_debt", 0.0))
+        + weights["w_anom"] * ( features.get("anomaly", 0.0))
+        + weights["w_fcast"]* ( features.get("forecast_delta", 0.0))
+    )
+    risk = _sigmoid(raw)
+    # clamp + 4dp
+    return round(raw, 4), round(max(0.0, min(1.0, risk)), 4)
 
 # Flexible alias map to match your existing schema
 ALIASES = {
