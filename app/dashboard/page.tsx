@@ -1,6 +1,7 @@
 // app/dashboard/page.tsx
 'use client'
 import React, { useState, useEffect } from "react"
+import useSWR from "swr"
 import { supabase } from '../../lib/supabase'
 import Trendchart from '../../components/TrendChart'
 import { useEval } from '../hooks/useEval'
@@ -8,7 +9,7 @@ import { useEval } from '../hooks/useEval'
 type RiskRow = { day: string; risk_score: number; model_version: string };
 type Explain = {
   day: string; riskPercent: number; modelVersion: string;
-  reasons: string[]; imageUrl?: string; disclaimer: string;
+  reasons: string[]; disclaimer: string;
 };
 
 const DEMO_USER_ID = "c1454b12-cd49-4ae7-8f4d-f261dcda3136"; // TODO: swap with session user
@@ -36,16 +37,167 @@ function fmt(dt?: string | null) {
   return dt ? new Date(dt).toLocaleString() : ''
 }
 
+function confidence(overall: { ece?: number; volatility?: number }) {
+  const e = overall.ece ?? 1;
+  const v = overall.volatility ?? 1;
+  const score = 1 - (0.7 * e + 0.3 * v); // weight calibration more
+  if (score >= 0.8) return { label: "High", color: "green" };
+  if (score >= 0.6) return { label: "Moderate", color: "amber" };
+  return { label: "Low", color: "red" };
+}
+
+function ConfidenceBadge({ overall }: { overall: { ece?: number; volatility?: number } }) {
+  const conf = confidence(overall);
+  const colorClass = conf.color === "green" ? "bg-green-100 text-green-800 border-green-200" :
+                     conf.color === "amber" ? "bg-amber-100 text-amber-800 border-amber-200" :
+                     "bg-red-100 text-red-800 border-red-200";
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border ${colorClass}`}>
+      Confidence: {conf.label}
+    </span>
+  );
+}
+
+function ComparisonCards({ 
+  primary, 
+  secondary, 
+  primaryLabel, 
+  secondaryLabel 
+}: { 
+  primary: { brier?: number; ece?: number; volatility?: number } | null;
+  secondary: { brier?: number; ece?: number; volatility?: number } | null;
+  primaryLabel: string;
+  secondaryLabel: string;
+}) {
+  if (!primary || !secondary) return null;
+
+  const formatDelta = (primary: number, secondary: number) => {
+    const delta = secondary - primary; // Secondary relative to primary
+    const sign = delta >= 0 ? "+" : "";
+    // Lower is better for Brier/ECE/Vol, so negative delta is good (green)
+    const color = delta < 0 ? "text-green-600" : delta > 0 ? "text-red-600" : "text-gray-600";
+    return { text: `${sign}${delta.toFixed(4)}`, color };
+  };
+
+  const brierDelta = formatDelta(primary.brier ?? 0, secondary.brier ?? 0);
+  const eceDelta = formatDelta(primary.ece ?? 0, secondary.ece ?? 0);
+  const volDelta = formatDelta(primary.volatility ?? 0, secondary.volatility ?? 0);
+
+  return (
+    <div className="grid md:grid-cols-2 gap-4 mb-6">
+      {/* Primary Version */}
+      <div className="rounded-xl border bg-white p-4">
+        <div className="text-xs text-gray-500 mb-2">{primaryLabel}</div>
+        <div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-gray-600">Brier</span>
+            <span className="text-sm font-semibold">{primary.brier?.toFixed(4) ?? "—"}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-gray-600">ECE</span>
+            <span className="text-sm font-semibold">{primary.ece?.toFixed(4) ?? "—"}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-gray-600">Volatility</span>
+            <span className="text-sm font-semibold">{primary.volatility?.toFixed(4) ?? "—"}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Arrow & Secondary Version */}
+      <div className="relative">
+        <div className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2 text-gray-400 text-2xl">→</div>
+        <div className="rounded-xl border bg-white p-4">
+          <div className="text-xs text-gray-500 mb-2">{secondaryLabel}</div>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">Brier</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold">{secondary.brier?.toFixed(4) ?? "—"}</span>
+                <span className={`text-xs ${brierDelta.color}`}>{brierDelta.text}</span>
+              </div>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">ECE</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold">{secondary.ece?.toFixed(4) ?? "—"}</span>
+                <span className={`text-xs ${eceDelta.color}`}>{eceDelta.text}</span>
+              </div>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">Volatility</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold">{secondary.volatility?.toFixed(4) ?? "—"}</span>
+                <span className={`text-xs ${volDelta.color}`}>{volDelta.text}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [riskSeries, setRiskSeries] = useState<RiskRow[]>([]);
   const [exp, setExp] = useState<Explain | null>(null);
   const [metrics, setMetrics] = useState<any[]>([]);
   const [flags, setFlags] = useState<any[]>([]);
   const [showModelEvaluation, setShowModelEvaluation] = useState(false);
+  const [version, setVersion] = useState<string | null>(null);
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareVersion, setCompareVersion] = useState<string | null>(null);
   const today = new Date().toISOString().slice(0, 10)
   
+  // Load comparison state from localStorage
+  useEffect(() => {
+    const savedCompareMode = localStorage.getItem("eval_compare_mode") === "true";
+    const savedCompareVersion = localStorage.getItem("eval_compare_version");
+    if (savedCompareMode) setCompareMode(true);
+    if (savedCompareVersion) setCompareVersion(savedCompareVersion);
+  }, []);
+
+  // Save comparison state to localStorage
+  useEffect(() => {
+    localStorage.setItem("eval_compare_mode", compareMode.toString());
+  }, [compareMode]);
+  useEffect(() => {
+    if (compareVersion) {
+      localStorage.setItem("eval_compare_version", compareVersion);
+    }
+  }, [compareVersion]);
+  
+  // Fetch current default version
+  const { data: current } = useSWR(
+    "/api/eval/current/metrics",
+    (u: string) => fetch(u).then(r => r.json())
+  );
+
+  // Set version from current when loaded
+  useEffect(() => {
+    if (current?.version && !version) {
+      setVersion(current.version);
+    }
+  }, [current, version]);
+
+  // Set compare version from current when enabled
+  useEffect(() => {
+    if (compareMode && !compareVersion && current?.version) {
+      setCompareVersion(current.version === "phase3-v1" ? "phase3-v1-naive-cal" : "phase3-v1");
+    }
+  }, [compareMode, compareVersion, current]);
+
   // Fetch evaluation metrics
-  const { data: evalData, error: evalError, isLoading: evalLoading } = useEval("phase3-v1", "all");
+  const { data: evalData, error: evalError, isLoading: evalLoading } = useEval(
+    version ?? current?.version ?? "phase3-v1",
+    "all"
+  );
+
+  // Fetch comparison metrics
+  const { data: compareData, error: compareError, isLoading: compareLoading } = useEval(
+    compareMode ? (compareVersion ?? current?.version ?? "phase3-v1") : "",
+    "all"
+  );
 
   // Load all data
   useEffect(() => {
@@ -129,6 +281,49 @@ export default function Dashboard() {
 
       {showModelEvaluation ? (
         <>
+          <div className="space-y-3 mb-4">
+            <div className="flex items-center gap-3 flex-wrap">
+              <label className="text-sm text-gray-600">Model Version:</label>
+              <select 
+                className="border p-2 rounded text-sm"
+                value={version ?? current?.version ?? "phase3-v1"} 
+                onChange={e => setVersion(e.target.value)}
+              >
+                <option value="phase3-v1">phase3-v1</option>
+                <option value="phase3-v1-naive-raw">phase3-v1-naive-raw</option>
+                <option value="phase3-v1-naive-cal">phase3-v1-naive-cal</option>
+                <option value="phase3-v1-gru-raw">phase3-v1-gru-raw</option>
+                <option value="phase3-v1-gru-cal">phase3-v1-gru-cal</option>
+              </select>
+              {evalData?.overall && <ConfidenceBadge overall={evalData.overall} />}
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={compareMode}
+                  onChange={e => setCompareMode(e.target.checked)}
+                  className="w-4 h-4"
+                />
+                Compare
+              </label>
+            </div>
+            {compareMode && (
+              <div className="flex items-center gap-3 flex-wrap">
+                <label className="text-sm text-gray-600">Compare With:</label>
+                <select 
+                  className="border p-2 rounded text-sm"
+                  value={compareVersion ?? current?.version ?? "phase3-v1"} 
+                  onChange={e => setCompareVersion(e.target.value)}
+                >
+                  <option value="phase3-v1">phase3-v1</option>
+                  <option value="phase3-v1-naive-raw">phase3-v1-naive-raw</option>
+                  <option value="phase3-v1-naive-cal">phase3-v1-naive-cal</option>
+                  <option value="phase3-v1-gru-raw">phase3-v1-gru-raw</option>
+                  <option value="phase3-v1-gru-cal">phase3-v1-gru-cal</option>
+                </select>
+                {compareData?.overall && <ConfidenceBadge overall={compareData.overall} />}
+              </div>
+            )}
+          </div>
           {evalError && (
             <div className="p-4 text-red-600 bg-red-50 rounded-lg border border-red-200">
               Failed to load metrics: {evalError.message || "Unknown error"}
@@ -147,6 +342,15 @@ export default function Dashboard() {
                 
                 return (
                   <div className="space-y-6">
+                    {/* Comparison Cards */}
+                    {compareMode && compareData?.overall && (
+                      <ComparisonCards
+                        primary={evalData.overall}
+                        secondary={compareData.overall}
+                        primaryLabel={version ?? current?.version ?? "phase3-v1"}
+                        secondaryLabel={compareVersion ?? current?.version ?? "phase3-v1"}
+                      />
+                    )}
                     {/* Headline cards */}
                     <div className="grid md:grid-cols-3 gap-4">
                       <div className="rounded-xl border bg-white p-4">

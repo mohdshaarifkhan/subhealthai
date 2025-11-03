@@ -21,6 +21,30 @@ from ml.config import supabase, MODEL_VERSION_BASELINE, WEIGHTS_V1
 CANONICAL = ["hrv_mean", "rhr_mean", "sleep_hours", "steps"]
 FEATURES = CANONICAL
 
+# --- Adaptive threshold utilities (drop-in) ---
+def rolling_quantile(xs, q: float = 0.7, w: int = 28):
+    """Compute rolling quantile with window size w.
+    For each position i, uses the last up to w values including i.
+    """
+    out = []
+    buf = []
+    for x in xs:
+        buf.append(x)
+        if len(buf) > w:
+            buf.pop(0)
+        # numpy quantile on current buffer
+        out.append(float(np.quantile(buf, q)))
+    return out
+
+def adaptive_threshold(yhat_cal, q: float = 0.7, w: int = 28):
+    """Return binary decisions comparing predictions to a rolling quantile threshold.
+    - yhat_cal: calibrated probabilities or risk scores (list/array)
+    - q: quantile level (e.g., 0.7)
+    - w: rolling window length (e.g., 28 days)
+    """
+    thresholds = rolling_quantile(yhat_cal, q=q, w=w)
+    return [int(p >= t) for p, t in zip(yhat_cal, thresholds)]
+
 def _sigmoid(x: float) -> float:
     return 1.0 / (1.0 + math.exp(-x))
 

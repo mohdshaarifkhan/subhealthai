@@ -4,24 +4,17 @@ from sklearn.isotonic import IsotonicRegression
 try:
     from ml.db import sb_client
     try:
-        from .metrics import brier_score, ece, volatility, lead_time, rationale_fidelity
+        from .metrics import brier_score, ece, volatility
     except ImportError:
-        from metrics import brier_score, ece, volatility, lead_time, rationale_fidelity
+        from metrics import brier_score, ece, volatility
 except ImportError:
     # If running directly, add parent directory to path
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
     from ml.db import sb_client
-    from ml.evaluation.metrics import brier_score, ece, volatility, lead_time, rationale_fidelity
+    from ml.evaluation.metrics import brier_score, ece, volatility
 
 OUT=pathlib.Path(__file__).parent / "logs"; OUT.mkdir(parents=True, exist_ok=True)
 TODAY=datetime.date.today().isoformat()
-
-def calibrate_isotonic(p, y):
-    ir = IsotonicRegression(y_min=0.0, y_max=1.0, out_of_bounds="clip")
-    p_array = np.array([float(x) for x in p])
-    y_array = np.array([int(t) for t in y])
-    ir.fit(p_array.reshape(-1, 1), y_array)
-    return ir.predict(p_array.reshape(-1, 1))
 
 def ema(xs, alpha=0.3):
     """Exponential Moving Average for smoothing time series."""
@@ -31,31 +24,6 @@ def ema(xs, alpha=0.3):
         m = x if m is None else alpha*x + (1-alpha)*m
         out.append(m)
     return out
-
-def fetch_user_data(sb, user, start, end, model_version=None):
-    """Fetch risk scores and labels for a user."""
-    q = sb.table("risk_scores").select("day,risk_score,user_id").eq("user_id",user).gte("day",start).lte("day",end).order("day")
-    if model_version:
-        q = q.eq("model_version", model_version)
-    r = q.execute().data or []
-    
-    # Fetch labels from labels_daily table
-    labels = (
-        sb.table("labels_daily")
-        .select("user_id, day, label")
-        .eq("user_id", user)
-        .gte("day", start)
-        .lte("day", end)
-        .execute()
-        .data or []
-    )
-    label_map = {(row["user_id"], row["day"]): int(row["label"]) for row in labels}
-    
-    days = [row["day"] for row in r]
-    p = np.array([row["risk_score"] for row in r])
-    # Labels aligned to risk_scores, default to 0 if no label exists
-    y = np.array([label_map.get((user, d), 0) for d in days])
-    return days, p, y
 
 def fetch_all_data(sb, start, end, model_version=None):
     """Fetch risk scores and labels for all users."""
@@ -402,9 +370,41 @@ def upsert_eval_cache(sb, version, metrics, segment="all"):
         for row in metrics["shap_global"]
     ], on_conflict="version,segment,feature").execute()
 
-def run_once(version, model_version=None, days_back=60, calibrate=True, make_figures=False):
+# Ablation experiments configuration
+EXPS = [
+    ("phase3-v1-naive-raw", {"forecast": "naive", "cal": False}),
+    ("phase3-v1-naive-cal", {"forecast": "naive", "cal": True}),
+    ("phase3-v1-gru-raw",   {"forecast": "gru",   "cal": False}),
+    ("phase3-v1-gru-cal",   {"forecast": "gru",   "cal": True}),
+]
+
+def run_ablation(sb, days_back=60, make_figures=False):
+    """Run ablation study across all experiment configurations."""
+    for ver, cfg in EXPS:
+        m = run_once(
+            version=ver,
+            forecast_type=cfg["forecast"],
+            calibrate=cfg["cal"],
+            days_back=days_back,
+            make_figures=make_figures
+        )
+        if m:
+            upsert_eval_cache(sb, ver, m, segment="all")
+            print(f"[OK] cached {ver}")
+        else:
+            print(f"[SKIP] skipped {ver} (no data)")
+
+def run_once(version, model_version=None, days_back=60, calibrate=True, make_figures=False, forecast_type=None):
     """Run evaluation once with given configuration. Returns metrics dict."""
     sb = sb_client()
+    
+    # Map forecast_type to model_version if provided
+    if forecast_type and not model_version:
+        if forecast_type == "naive":
+            model_version = "phase3-v1"  # Default naive doesn't have suffix
+        elif forecast_type == "gru":
+            model_version = "phase3-v1-gru"
+        # Add more forecast types as needed
     
     # Date range
     start = (datetime.date.today() - datetime.timedelta(days=days_back)).isoformat()
@@ -447,7 +447,6 @@ def run_once(version, model_version=None, days_back=60, calibrate=True, make_fig
     reliability, ece_value = reliability_equalfreq(p_test, y_test, n_bins=reliability_bins)
     
     # Compute overall metrics using predictions on test set only (paper metrics)
-    tau = float(np.quantile(all_p_final, 0.8)) if len(all_p_final) > 0 else 1.0
     overall = {
         "brier": brier_score(p_test, y_test),  # Paper metric: test set only
         "ece": float(ece_value),  # Paper metric: test set only
@@ -502,31 +501,8 @@ def main():
     sb = sb_client()
     
     if args.ablation:
-        # Run ablation study
-        EXPERIMENTS = [
-            ("phase3-v1-naive-raw", {"forecast": "naive", "calibrate": False}),
-            ("phase3-v1-naive-cal", {"forecast": "naive", "calibrate": True}),
-            ("phase3-v1-gru-raw", {"forecast": "gru", "calibrate": False}),
-            ("phase3-v1-gru-cal", {"forecast": "gru", "calibrate": True}),
-        ]
-        
         print("Running ablation study...\n")
-        for ver, cfg in EXPERIMENTS:
-            # Map forecast type to model_version filter
-            # Assuming risk_scores have model_version matching forecast type
-            model_ver = f"phase3-v1-{cfg['forecast']}" if cfg["forecast"] != "naive" else "phase3-v1"
-            metrics = run_once(
-                version=ver,
-                model_version=model_ver,
-                days_back=args.days_back,
-                calibrate=cfg["calibrate"],
-                make_figures=args.make_figures
-            )
-            if metrics:
-                upsert_eval_cache(sb, ver, metrics, segment="all")
-                print(f"[OK] ablation cached: {ver}")
-            else:
-                print(f"[SKIP] skipped: {ver} (no data)")
+        run_ablation(sb, days_back=args.days_back, make_figures=args.make_figures)
         print("\nAblation study complete!")
     else:
         # Run single evaluation

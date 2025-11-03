@@ -190,15 +190,17 @@ if __name__ == "__main__":
     ap.add_argument("--days-back", type=int, help="Number of days back from today (used if --since not provided)")
     ap.add_argument("--version", type=str, default="phase3-v1", help="Model version tag (default: phase3-v1)")
     ap.add_argument("--user", type=str, help="Specific user ID (defaults to DEMO_USER_ID)")
-    ap.add_argument("--forecaster", type=str, default="naive", choices=["naive", "gru"], help="Forecaster mode (default: naive)")
+    ap.add_argument("--forecast", type=str, default="naive", choices=["naive", "gru", "chronos"], help="Forecast adapter: naive|gru|chronos (default: naive)")
     
     args = ap.parse_args()
     
+    forecast_kind = args.forecast
+
     run(
         since=args.since,
         until=args.until,
         days_back=args.days_back,
-        forecaster_mode=args.forecaster,
+        forecaster_mode=forecast_kind,
         model_version=args.version,
         user_id=args.user
     )

@@ -1,6 +1,6 @@
 # scripts/generate_synthetic_data.py
 
-import os, random, datetime as dt, uuid
+import os, datetime as dt, uuid
 
 import numpy as np
 
