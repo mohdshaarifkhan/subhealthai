@@ -5,6 +5,7 @@ import useSWR from "swr"
 import { supabase } from '../../lib/supabase'
 import Trendchart from '../../components/TrendChart'
 import { useEval } from '../hooks/useEval'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 
 type RiskRow = { day: string; risk_score: number; model_version: string };
 type Explain = {
@@ -56,6 +57,12 @@ function ConfidenceBadge({ overall }: { overall: { ece?: number; volatility?: nu
       Confidence: {conf.label}
     </span>
   );
+}
+
+function getVolatilityLevel(vol: number): { label: string; color: string } {
+  if (vol < 0.1) return { label: "Low", color: "bg-green-100 text-green-800 border-green-200" };
+  if (vol <= 0.25) return { label: "Med", color: "bg-amber-100 text-amber-800 border-amber-200" };
+  return { label: "High", color: "bg-red-100 text-red-800 border-red-200" };
 }
 
 function ComparisonCards({ 
@@ -147,6 +154,8 @@ export default function Dashboard() {
   const [version, setVersion] = useState<string | null>(null);
   const [compareMode, setCompareMode] = useState(false);
   const [compareVersion, setCompareVersion] = useState<string | null>(null);
+  const [shapView, setShapView] = useState<"global" | "perday">("global");
+  const [shapDay, setShapDay] = useState<string>("");
   const today = new Date().toISOString().slice(0, 10)
   
   // Load comparison state from localStorage
@@ -173,29 +182,46 @@ export default function Dashboard() {
     (u: string) => fetch(u).then(r => r.json())
   );
 
-  // Set version from current when loaded
+  // Set version from current when loaded, or default to phase3-v1-wes
   useEffect(() => {
-    if (current?.version && !version) {
-      setVersion(current.version);
+    if (!version) {
+      setVersion(current?.version ?? "phase3-v1-wes");
     }
   }, [current, version]);
 
   // Set compare version from current when enabled
   useEffect(() => {
-    if (compareMode && !compareVersion && current?.version) {
-      setCompareVersion(current.version === "phase3-v1" ? "phase3-v1-naive-cal" : "phase3-v1");
+    if (compareMode && !compareVersion) {
+      const primary = version ?? current?.version ?? "phase3-v1-wes";
+      // Set different default comparison based on primary
+      if (primary === "phase3-v1-wes") {
+        setCompareVersion("phase3-v1-naive-cal");
+      } else if (primary === "phase3-v1-self") {
+        setCompareVersion("phase3-v1-wes");
+      } else {
+        setCompareVersion("phase3-v1-wes");
+      }
     }
-  }, [compareMode, compareVersion, current]);
+  }, [compareMode, compareVersion, current, version]);
 
   // Fetch evaluation metrics
+  const evalSegment = shapView === "perday" && shapDay ? `day:${shapDay}` : "all";
   const { data: evalData, error: evalError, isLoading: evalLoading } = useEval(
-    version ?? current?.version ?? "phase3-v1",
-    "all"
+    version ?? current?.version ?? "phase3-v1-wes",
+    evalSegment
+  );
+  
+  // Fetch per-day SHAP if needed
+  const { data: dayEvalData } = useSWR(
+    shapView === "perday" && shapDay && (version ?? current?.version)
+      ? `/api/eval/${version ?? current?.version ?? "phase3-v1-wes"}/metrics?day=${shapDay}`
+      : null,
+    (url: string) => fetch(url).then(r => r.json())
   );
 
   // Fetch comparison metrics
   const { data: compareData, error: compareError, isLoading: compareLoading } = useEval(
-    compareMode ? (compareVersion ?? current?.version ?? "phase3-v1") : "",
+    compareMode ? (compareVersion ?? current?.version ?? "phase3-v1-wes") : "",
     "all"
   );
 
@@ -283,17 +309,16 @@ export default function Dashboard() {
         <>
           <div className="space-y-3 mb-4">
             <div className="flex items-center gap-3 flex-wrap">
-              <label className="text-sm text-gray-600">Model Version:</label>
+              <label className="text-sm text-gray-600">Dataset:</label>
               <select 
-                className="border p-2 rounded text-sm"
-                value={version ?? current?.version ?? "phase3-v1"} 
+                className="border p-2 rounded text-sm bg-white"
+                value={version ?? current?.version ?? "phase3-v1-wes"} 
                 onChange={e => setVersion(e.target.value)}
+                defaultValue="phase3-v1-wes"
               >
-                <option value="phase3-v1">phase3-v1</option>
-                <option value="phase3-v1-naive-raw">phase3-v1-naive-raw</option>
-                <option value="phase3-v1-naive-cal">phase3-v1-naive-cal</option>
-                <option value="phase3-v1-gru-raw">phase3-v1-gru-raw</option>
-                <option value="phase3-v1-gru-cal">phase3-v1-gru-cal</option>
+                <option value="phase3-v1-wes">WESAD (Empirical)</option>
+                <option value="phase3-v1-self">Samsung (Personal)</option>
+                <option value="phase3-v1-naive-cal">Synthetic (Baseline)</option>
               </select>
               {evalData?.overall && <ConfidenceBadge overall={evalData.overall} />}
               <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -310,15 +335,13 @@ export default function Dashboard() {
               <div className="flex items-center gap-3 flex-wrap">
                 <label className="text-sm text-gray-600">Compare With:</label>
                 <select 
-                  className="border p-2 rounded text-sm"
-                  value={compareVersion ?? current?.version ?? "phase3-v1"} 
+                  className="border p-2 rounded text-sm bg-white"
+                  value={compareVersion ?? current?.version ?? "phase3-v1-wes"} 
                   onChange={e => setCompareVersion(e.target.value)}
                 >
-                  <option value="phase3-v1">phase3-v1</option>
-                  <option value="phase3-v1-naive-raw">phase3-v1-naive-raw</option>
-                  <option value="phase3-v1-naive-cal">phase3-v1-naive-cal</option>
-                  <option value="phase3-v1-gru-raw">phase3-v1-gru-raw</option>
-                  <option value="phase3-v1-gru-cal">phase3-v1-gru-cal</option>
+                  <option value="phase3-v1-wes">WESAD (Empirical)</option>
+                  <option value="phase3-v1-self">Samsung (Personal)</option>
+                  <option value="phase3-v1-naive-cal">Synthetic (Baseline)</option>
                 </select>
                 {compareData?.overall && <ConfidenceBadge overall={compareData.overall} />}
               </div>
@@ -347,8 +370,8 @@ export default function Dashboard() {
                       <ComparisonCards
                         primary={evalData.overall}
                         secondary={compareData.overall}
-                        primaryLabel={version ?? current?.version ?? "phase3-v1"}
-                        secondaryLabel={compareVersion ?? current?.version ?? "phase3-v1"}
+                        primaryLabel={version ?? current?.version ?? "phase3-v1-wes"}
+                        secondaryLabel={compareVersion ?? current?.version ?? "phase3-v1-wes"}
                       />
                     )}
                     {/* Headline cards */}
@@ -358,6 +381,11 @@ export default function Dashboard() {
                         <div className="text-2xl font-semibold">
                           {overall.brier?.toFixed(3) ?? '—'}
                         </div>
+                        {overall.ece !== undefined && (
+                          <div className="mt-2 text-xs text-gray-500">
+                            Calibrated ✓ (ECE {overall.ece.toFixed(2)})
+                          </div>
+                        )}
                       </div>
                       <div className="rounded-xl border bg-white p-4">
                         <div className="text-sm text-gray-600 mb-1">ECE</div>
@@ -370,6 +398,13 @@ export default function Dashboard() {
                         <div className="text-2xl font-semibold">
                           {overall.volatility?.toFixed(3) ?? '—'}
                         </div>
+                        {overall.volatility !== undefined && (
+                          <div className="mt-2">
+                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${getVolatilityLevel(overall.volatility).color}`}>
+                              {getVolatilityLevel(overall.volatility).label}
+                            </span>
+                          </div>
+                        )}
                       </div>
                       <div className="rounded-xl border bg-white p-4">
                         <div className="text-sm text-gray-600 mb-1">Lead Time (mean)</div>
@@ -382,6 +417,13 @@ export default function Dashboard() {
                         <div className="text-2xl font-semibold">
                           {overall.lead_time_days_p90?.toFixed(1) ?? '—'} days
                         </div>
+                        {overall.lead_time_days_p90 !== undefined && (
+                          <div className="mt-2">
+                            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border bg-blue-100 text-blue-800 border-blue-200">
+                              P90: {overall.lead_time_days_p90.toFixed(0)}d
+                            </span>
+                          </div>
+                        )}
                       </div>
                       <div className="rounded-xl border bg-white p-4">
                         <div className="text-sm text-gray-600 mb-1">Sample Size</div>
@@ -466,33 +508,89 @@ export default function Dashboard() {
                       </section>
                     )}
                     
-                    {/* SHAP Global */}
+                    {/* SHAP Global/Per-day */}
                     {shapGlobal.length > 0 && (
                       <section>
-                        <h2 className="text-xl font-medium mb-3">Feature Importance (SHAP)</h2>
-                        <div className="rounded-xl border bg-white p-4">
-                          <div className="space-y-4">
-                            {shapGlobal.map((s: any, i: number) => {
-                              const maxShap = Math.max(...shapGlobal.map((x: any) => x.mean_abs_shap || 0));
-                              const width = maxShap > 0 ? ((s.mean_abs_shap || 0) / maxShap) * 100 : 0;
-                              return (
-                                <div key={i}>
-                                  <div className="flex items-center justify-between mb-2">
-                                    <span className="font-medium text-gray-800">{s.feature}</span>
-                                    <span className="text-sm font-semibold text-gray-700">
-                                      {s.mean_abs_shap?.toFixed(4) ?? '—'}
-                                    </span>
-                                  </div>
-                                  <div className="w-full bg-gray-200 rounded-full h-3">
-                                    <div
-                                      className="bg-blue-600 h-3 rounded-full transition-all"
-                                      style={{ width: `${width}%` }}
-                                    />
-                                  </div>
-                                </div>
-                              );
-                            })}
+                        <div className="flex items-center justify-between mb-3">
+                          <h2 className="text-xl font-medium">Feature Importance (SHAP)</h2>
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2 text-sm">
+                              <button
+                                onClick={() => setShapView("global")}
+                                className={`px-3 py-1 rounded border ${
+                                  shapView === "global"
+                                    ? "bg-blue-600 text-white border-blue-600"
+                                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                                }`}
+                              >
+                                Global
+                              </button>
+                              <button
+                                onClick={() => setShapView("perday")}
+                                className={`px-3 py-1 rounded border ${
+                                  shapView === "perday"
+                                    ? "bg-blue-600 text-white border-blue-600"
+                                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                                }`}
+                              >
+                                Per-day
+                              </button>
+                            </div>
+                            {shapView === "perday" && (
+                              <input
+                                type="date"
+                                value={shapDay}
+                                onChange={(e) => setShapDay(e.target.value)}
+                                className="border rounded px-2 py-1 text-sm"
+                                max={today}
+                              />
+                            )}
                           </div>
+                        </div>
+                        <div className="rounded-xl border bg-white p-4">
+                          {shapView === "global" ? (
+                            <div className="h-64">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <BarChart
+                                  data={shapGlobal.map((s: any) => ({
+                                    feature: s.feature,
+                                    value: s.mean_abs_shap || 0
+                                  }))}
+                                  layout="vertical"
+                                >
+                                  <CartesianGrid strokeDasharray="3 3" />
+                                  <XAxis type="number" />
+                                  <YAxis dataKey="feature" type="category" width={100} tick={{ fontSize: 12 }} />
+                                  <Tooltip />
+                                  <Bar dataKey="value" fill="#2563eb" />
+                                </BarChart>
+                              </ResponsiveContainer>
+                            </div>
+                          ) : shapDay && dayEvalData?.shap_global ? (
+                            dayEvalData.shap_global.length > 0 ? (
+                              <div className="h-64">
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <BarChart
+                                    data={dayEvalData.shap_global.map((s: any) => ({
+                                      feature: s.feature,
+                                      value: s.mean_abs_shap || 0
+                                    }))}
+                                    layout="vertical"
+                                  >
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis type="number" />
+                                    <YAxis dataKey="feature" type="category" width={100} tick={{ fontSize: 12 }} />
+                                    <Tooltip />
+                                    <Bar dataKey="value" fill="#2563eb" />
+                                  </BarChart>
+                                </ResponsiveContainer>
+                              </div>
+                            ) : (
+                              <div className="p-4 text-sm text-gray-500">No SHAP data for this day.</div>
+                            )
+                          ) : (
+                            <div className="p-4 text-sm text-gray-500">Select a date to view per-day SHAP values.</div>
+                          )}
                         </div>
                       </section>
                     )}

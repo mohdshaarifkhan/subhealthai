@@ -11,7 +11,13 @@ export async function GET(
   try {
     const { version } = await params;
     const { searchParams } = new URL(req.url);
-    const segment = searchParams.get("segment") || "all";
+    let segment = searchParams.get("segment") || "all";
+    const day = searchParams.get("day");
+    
+    // Support ?day=YYYY-MM-DD as an alias for segment=day:YYYY-MM-DD
+    if (day && segment === "all") {
+      segment = `day:${day}`;
+    }
 
     // Use service role to bypass RLS if needed
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
