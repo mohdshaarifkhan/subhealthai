@@ -1,13 +1,20 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+import { resolveUserId } from "@/lib/resolveUser";
+
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const DEMO_USER_ID = "c1454b12-cd49-4ae7-8f4d-f261dcda3136";
-
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const userId = searchParams.get("user") || DEMO_USER_ID;
+
+  let userId: string;
+  try {
+    userId = await resolveUserId(searchParams.get("user"));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unable to resolve user.";
+    return NextResponse.json({ url: null, error: message }, { status: 400 });
+  }
 
   // Use service role to bypass RLS
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
