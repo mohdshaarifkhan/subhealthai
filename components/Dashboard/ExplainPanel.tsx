@@ -31,6 +31,17 @@ type TrendSeries = {
   value: number | null;
 }[];
 
+type SummaryResponse = {
+  summary?: string | null;
+  top_contributors?: Array<{
+    feature: string;
+    label?: string;
+    shap_value: number;
+    arrow?: string;
+    effect?: string;
+  }>;
+};
+
 export default function ExplainPanel({
   user,
   version,
@@ -41,6 +52,8 @@ export default function ExplainPanel({
   const [explainData, setExplainData] = useState<ExplainData | null>(null);
   const [snapshot, setSnapshot] = useState<SnapshotResponse | null>(null);
   const [trendMap, setTrendMap] = useState<Record<string, TrendSeries>>({});
+  const [shapSummary, setShapSummary] = useState<string | null>(null);
+  const [shapTop, setShapTop] = useState<SummaryResponse["top_contributors"]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [snapshotLoading, setSnapshotLoading] = useState(false);
@@ -55,6 +68,8 @@ export default function ExplainPanel({
       setExplainData(null);
       setSnapshot(null);
       setTrendMap({});
+      setShapSummary(null);
+      setShapTop([]);
 
       try {
         const res = await fetch(
@@ -111,6 +126,34 @@ export default function ExplainPanel({
       ignore = true;
     };
   }, [explainData?.day, user]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadSummary() {
+      try {
+        const res = await fetch(
+          `/api/explain/summary?user=${encodeURIComponent(user)}&version=${encodeURIComponent(version)}`,
+          { cache: "no-store" }
+        );
+        const json: SummaryResponse = await res.json();
+        if (!ignore && res.ok) {
+          setShapSummary(json.summary ?? null);
+          setShapTop(json.top_contributors ?? []);
+        }
+      } catch {
+        if (!ignore) {
+          setShapSummary(null);
+          setShapTop([]);
+        }
+      }
+    }
+
+    loadSummary();
+    return () => {
+      ignore = true;
+    };
+  }, [user, version]);
 
   const merged = useMemo(() => {
     if (!explainData?.top_contributors?.length || !snapshot) return [];
@@ -187,9 +230,13 @@ export default function ExplainPanel({
     };
   }, [merged, user]);
 
+  const mergedContext = merged;
+  const hasContributors = mergedContext.length > 0;
+
   if (loading) return <p>Loading explainability...</p>;
   if (error) return <p className="text-sm text-red-600">{error}</p>;
-  if (!explainData?.top_contributors?.length) return <p>No explainability available yet.</p>;
+  if (!explainData?.top_contributors?.length && !hasContributors && !shapSummary)
+    return <p>No explainability available yet.</p>;
 
   return (
     <div className="space-y-4 rounded-lg border bg-white p-4 shadow-sm">
@@ -200,23 +247,31 @@ export default function ExplainPanel({
         )}
       </div>
 
-      {summary ? (
+      {shapSummary ? (
         <div className="space-y-1 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
-          <p>{summary.summaryLine}</p>
-          {summary.driverLine ? (
-            <p className="text-xs text-slate-500">{summary.driverLine}</p>
+          <p>{shapSummary}</p>
+          {shapTop?.length ? (
+            <div className="flex flex-wrap gap-2 text-xs text-slate-500">
+              {shapTop.map((item) => (
+                <span key={item.feature} className="rounded-full bg-white px-2 py-1 shadow-sm">
+                  {item.label ?? item.feature}: {item.arrow ?? arrowFor(item.shap_value)}
+                </span>
+              ))}
+            </div>
           ) : null}
+          <p className="text-xs text-slate-400">Top SHAP contributors for today.</p>
         </div>
       ) : null}
 
-      {explainData.rationale ? (
+      {explainData.rationale && hasContributors ? (
         <p className="text-sm text-gray-600">{explainData.rationale}</p>
-      ) : (
-        <p className="text-sm text-gray-500">No rationale available for this day.</p>
-      )}
+      ) : null}
+      {!hasContributors ? (
+        <p className="text-sm text-gray-500">No clear contributing factors today.</p>
+      ) : null}
 
       <div className="divide-y">
-        {merged.map((entry) => (
+        {mergedContext.map((entry) => (
           <MetricRow
             key={entry.feature}
             {...entry}
@@ -365,5 +420,11 @@ function describeDriver(item: {
 
   const direction = item.delta > 0 ? "higher" : "lower";
   return `${direction} ${label}`;
+}
+
+function arrowFor(shap: number) {
+  if (shap > 0) return "↑";
+  if (shap < 0) return "↓";
+  return "—";
 }
 

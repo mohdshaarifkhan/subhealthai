@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-import { riskColor, toPct } from "@/lib/riskFormat";
+import { confidenceFromCalibration } from "@/lib/calcConfidence";
+import { toPct, riskColor } from "@/lib/riskFormat";
 
 type RiskResp = {
   user: string;
@@ -125,6 +126,10 @@ export default function RiskCard({
   }
 
   const badge = riskColor(risk.forecast_risk);
+  const confidence =
+    risk.forecast_risk != null && risk?.reliability_points
+      ? confidenceFromCalibration(risk.forecast_risk, risk.reliability_points)
+      : { level: "—", gap: null };
   const metaChips: ChipProps[] = [
     { label: "Model", value: risk.version },
   ];
@@ -158,6 +163,12 @@ export default function RiskCard({
           <p className="text-xs text-gray-500">
             Probability of instability today vs. your baseline.
           </p>
+          {confidence.level !== "—" ? (
+            <span className="mt-1 inline-block rounded-full bg-slate-100 px-3 py-0.5 text-xs text-slate-700">
+              Confidence: {confidence.level}
+              {confidence.gap != null ? ` (gap ${confidence.gap})` : ""}
+            </span>
+          ) : null}
         </div>
         <span className={`px-3 py-1 rounded-full text-sm font-medium ${badge}`}>
           {toPct(risk.forecast_risk)}
