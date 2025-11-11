@@ -2,20 +2,9 @@
 import { useEffect, useState } from "react";
 import RiskSpark from "../../components/RiskSpark";
 import ExplainModal from "../../components/ExplainModal";
+import RiskBadge from "../../components/RiskBadge";
 
 type Row = { day: string; risk_score: number; model_version: string };
-
-function RiskBadge({ score }: { score: number }) {
-  const pct = Math.round(score * 100);
-  let color = "bg-green-600";
-  if (score >= 0.33 && score < 0.66) color = "bg-yellow-600";
-  if (score >= 0.66) color = "bg-red-600";
-  return (
-    <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium text-white ${color}`}>
-      Risk {pct}%
-    </span>
-  );
-}
 
 export default function RiskPanel({ userId }: { userId: string }) {
   const [rows, setRows] = useState<Row[]>([]);

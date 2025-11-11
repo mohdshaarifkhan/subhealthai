@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+import { resolveUserId } from "@/lib/resolveUser";
+
 function toPct(x: number) { return Math.round(Math.min(1, Math.max(0, x)) * 100); }
 
 function explainFromZ(z: Record<string, number>) {
@@ -36,8 +38,14 @@ function explainFromZ(z: Record<string, number>) {
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const user = searchParams.get("user");
-  if (!user) return NextResponse.json({ error: "missing user" }, { status: 400 });
+
+  let user: string;
+  try {
+    user = await resolveUserId(searchParams.get("user"));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unable to resolve user.";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
