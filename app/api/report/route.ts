@@ -5,6 +5,7 @@ import { renderToStream } from "@react-pdf/renderer";
 import ReportDoc from "@/components/report/ReportDoc";
 import { getDashboard } from "@/lib/getDashboard";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getMultimodalRiskForReport } from "@/lib/server/multimodalRisk";
 
 export const runtime = "nodejs";
 
@@ -36,8 +37,17 @@ export async function GET(req: Request) {
     }
 
     const data = await getDashboard({ user, version, origin });
+    // Fetch multimodal patterns (non-diagnostic) to include in PDF
+    let multimodal: any = null;
+    try {
+      if (user) {
+        multimodal = await getMultimodalRiskForReport(user);
+      }
+    } catch {
+      multimodal = null;
+    }
     const stream = await renderToStream(
-      ReportDoc({ data, userLabel: label }) as unknown as React.ReactElement
+      ReportDoc({ data, userLabel: label, multimodal }) as unknown as React.ReactElement
     );
 
     return new NextResponse(stream as unknown as ReadableStream<Uint8Array>, {

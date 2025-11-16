@@ -2,6 +2,7 @@ import React from "react";
 import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 
 import type { DashboardData } from "@/lib/getDashboard";
+import { MultimodalSection } from "./MultimodalSection";
 
 const styles = StyleSheet.create({
   page: {
@@ -186,12 +187,20 @@ function chunkSeries<T>(items: T[], size: number) {
   return result;
 }
 
+type MultimodalResult = {
+  overall: { overall_index: number; overall_tier: "low" | "moderate" | "high" };
+  conditions: { condition: string; index: number; tier: "low" | "moderate" | "high"; reasons: string[]; dataSources: string[] }[];
+  disclaimer: string;
+} | null;
+
 export default function ReportDoc({
   data,
   userLabel,
+  multimodal,
 }: {
   data: DashboardData;
   userLabel?: string;
+  multimodal?: MultimodalResult;
 }) {
   const riskPercent = data.forecast.latest?.risk ?? null;
   const anomalyDay = data.anomaly.day;
@@ -264,6 +273,15 @@ export default function ReportDoc({
             )}
           </View>
         </View>
+
+        {multimodal && (
+          <MultimodalSection
+            overall_index={multimodal.overall.overall_index}
+            overall_tier={multimodal.overall.overall_tier}
+            conditions={multimodal.conditions}
+            disclaimer={multimodal.disclaimer}
+          />
+        )}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Forecast trail</Text>
