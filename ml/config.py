@@ -14,3 +14,16 @@ supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 MODEL_VERSION_BASELINE = "baseline_v0.1"
 MODEL_VERSION_FORECAST = "forecast_v0.1"
+
+# Additional configuration
+DEMO_USER_ID = os.getenv("DEMO_USER_ID", "c1454b12-cd49-4ae7-8f4d-f261dcda3136")
+
+# Model configuration
+SEED = 42
+ROUND = 4  # decimals
+DETERMINISTIC = True
+VERSION_TAG = "phase3-v1"
+
+# Risk policy
+WEIGHTS_V1 = {"b0": 0.0, "w_hrv": 0.8, "w_rhr": 0.7, "w_sleep": 0.5, "w_anom": 0.6, "w_fcast": 0.4}
+DISPLAY_DECIMALS = 1  # UI shows one decimal; DB stores 4dp

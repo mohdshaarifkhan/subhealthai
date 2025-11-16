@@ -277,16 +277,29 @@ Planned integrations include:
 ## 📄 Research Publication
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17388335.svg)](https://doi.org/10.5281/zenodo.17388335)
+[![DOI](https://img.shields.io/badge/Preprints.org-10.20944/preprints202511.0156.v1-blue)](https://doi.org/10.20944/preprints202511.0156.v1)
+[![OSF](https://img.shields.io/badge/OSF_Project-Open_Access-lightgrey)](https://osf.io/gpce8/)
 
-The technical research behind **SubHealthAI** has been formally published as a preprint on **Zenodo**:
+The SubHealthAI research foundation has been published across multiple open-access repositories for transparency and peer validation:
 
-**“SubHealthAI: Predictive and Explainable AI for Early Detection of Subclinical Health Decline”**  
-DOI: [10.5281/zenodo.17388335](https://doi.org/10.5281/zenodo.17388335)  
-Date: **October 2025**
+### 🧠 **Primary Canonical Version**
+**SubHealthAI: Predictive and Explainable AI for Early Detection of Subclinical Health Decline**  
+📘 DOI: [10.20944/preprints202511.0156.v1](https://doi.org/10.20944/preprints202511.0156.v1)  
+🗓 Submitted October 29 2025 · Public November 2025  
 
-This publication details the SubHealthAI architecture, ML pipeline (Isolation Forest + GRU forecasting), SHAP-based explainability layer, and evaluation metrics *(Precision 0.81 | Recall 0.76 | RMSE 0.12 | MAE 0.09).*  
+This is the official open-access preprint describing SubHealthAI’s preventive-intelligence system:
+- Wearable + multimodal ingestion pipeline  
+- Baseline vs forecast risk modeling (Isolation Forest + GRU)  
+- SHAP-based explainability and empirical metrics  
+- Non-diagnostic framework under FDA SaMD alignment  
 
-📘 [Read the full whitepaper](whitepaper.md)
+---
+
+### 🔬 **Supporting Mirrors**
+- **Zenodo DOI:** [10.5281/zenodo.17388335](https://doi.org/10.5281/zenodo.17388335) — permanent archival copy for citation integrity and reproducibility.  
+- **OSF Project:** [https://osf.io/xxxxxx](https://osf.io/xxxxxx) — hosts supplementary datasets, schema snapshots, and evaluation logs (MetaArXiv moderation pending).  
+
+A peer-reviewed **IEEE submission** expanding clinical validation and multimodal integration is in preparation.
 
 *A Google Scholar profile will be added once the paper is indexed for citation visibility.*
 
@@ -309,8 +322,10 @@ We welcome collaborators in:
 ## 📬 Contact
 - Founder: **Mohd Shaarif Khan**  
 - Email: **shaarifkhan12@gmail.com**
-- GitHub: **https://github.com/mohdshaarifkhan**  
-- LinkedIn: **www.linkedin.com/in/mohdshaarif-khan**  
+- Google Scholar: [https://scholar.google.com/citations?user=CDV0JHIAAAAJ](https://scholar.google.com/citations?user=CDV0JHIAAAAJ)  
+- ORCID: [0009-0002-1219-2129](https://orcid.org/0009-0002-1219-2129)  
+- GitHub: [https://github.com/mohdshaarifkhan](https://github.com/mohdshaarifkhan)  
+- LinkedIn: [www.linkedin.com/in/mohdshaarif-khan](https://www.linkedin.com/in/mohdshaarif-khan)
 
 ---
 

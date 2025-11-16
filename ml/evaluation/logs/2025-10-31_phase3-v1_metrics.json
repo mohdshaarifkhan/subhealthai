@@ -1,0 +1,61 @@
+{
+  "overall": {
+    "brier": 0.6755688333333333,
+    "ece": 0.8073333333333332,
+    "volatility": 0.18874999999999997,
+    "lead_time_days_mean": 0.0,
+    "lead_time_days_p90": 0.0,
+    "n_users": 1,
+    "n_days": 3
+  },
+  "reliability": [
+    {
+      "bin": 0.6500000000000001,
+      "pred": 0.6225,
+      "obs": 0.0
+    },
+    {
+      "bin": 0.75,
+      "pred": 0.7995,
+      "obs": 0.0
+    },
+    {
+      "bin": 0.95,
+      "pred": 1.0,
+      "obs": 0.0
+    }
+  ],
+  "volatility_series": [
+    {
+      "day": "2025-09-20",
+      "mean_delta": 0.17699999999999994
+    },
+    {
+      "day": "2025-09-21",
+      "mean_delta": 0.2005
+    }
+  ],
+  "lead_time_hist": [],
+  "shap_global": [
+    {
+      "feature": "hrv",
+      "mean_abs_shap": 1.3333333333333333
+    },
+    {
+      "feature": "sleep_debt",
+      "mean_abs_shap": 0.54165
+    },
+    {
+      "feature": "rhr",
+      "mean_abs_shap": 0.0
+    },
+    {
+      "feature": "anomaly",
+      "mean_abs_shap": 0.0
+    },
+    {
+      "feature": "forecast_delta",
+      "mean_abs_shap": 0.0
+    }
+  ]
+}

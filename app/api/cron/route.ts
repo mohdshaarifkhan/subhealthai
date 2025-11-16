@@ -16,7 +16,7 @@ export async function POST(req: Request) {
 
     // 2) trigger weekly note generation (synchronous call)
     const base = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
-    const genResp = await fetch(`${base}/api/weekly_note`, { method: 'POST' })
+    const genResp = await fetch(`${base}/api/weekly-note`, { method: 'POST' })
     const gen = await genResp.json().catch(() => ({ ok: false }))
 
     // ❗ Return BOTH simple and baseline results

@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '../../../lib/supabaseAdmin'
 
-// simple mapping and aggregates for MVP
-const METRIC_MAP = {
-  steps: 'sum',
-  sleep_minutes: 'sum',
-  hr: 'avg',
-  hrv: 'avg',
-  rhr: 'avg',
-} as const
+// Mapping of raw event metric -> target metrics column and aggregate
+const METRIC_AGG: Record<string, { target: string; agg: 'sum'|'avg' }> = {
+  steps: { target: 'steps', agg: 'sum' },
+  sleep_minutes: { target: 'sleep_minutes', agg: 'sum' },
+  hr: { target: 'hr_avg', agg: 'avg' },
+  hrv: { target: 'hrv_avg', agg: 'avg' },
+  rhr: { target: 'rhr', agg: 'avg' },
+}
 
 function ymd(d: Date) { return d.toISOString().slice(0,10) }
 
@@ -40,27 +40,23 @@ export async function POST(req: Request) {
     const upserts: any[] = []
     for (const [uid, metrics] of Object.entries(byUser)) {
       const rec: any = { user_id: uid, day }
-      // compute aggregates
       for (const [m, arr] of Object.entries(metrics)) {
-        const kind = (METRIC_MAP as any)[m]
-        if (!kind || !arr.length) continue
-        if (kind === 'sum') rec[m] = arr.reduce((a, b) => a + b, 0)
-        if (kind === 'avg') rec[m + (m === 'hr' ? '_avg' : m === 'hrv' ? '_avg' : m === 'rhr' ? '' : '')] =
-          Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 100) / 100
+        const cfg = METRIC_AGG[m]
+        if (!cfg || !arr.length) continue
+        if (cfg.agg === 'sum') rec[cfg.target] = arr.reduce((a, b) => a + b, 0)
+        if (cfg.agg === 'avg') {
+          const avg = arr.reduce((a, b) => a + b, 0) / arr.length
+          rec[cfg.target] = Math.round(avg * 100) / 100
+        }
       }
-      // normalize keys to your metrics schema
-      // hr -> hr_avg, hrv -> hrv_avg; rhr already matches schema
-      if (rec['hr']) { rec['hr_avg'] = rec['hr']; delete rec['hr'] }
-      if (rec['hrv']) { rec['hrv_avg'] = rec['hrv']; delete rec['hrv'] }
-
       upserts.push(rec)
     }
 
-    // upsert into metrics (unique user_id, day)
-    for (const row of upserts) {
+    // bulk upsert into metrics (unique user_id, day)
+    if (upserts.length) {
       const { error } = await supabaseAdmin
         .from('metrics')
-        .upsert(row, { onConflict: 'user_id,day' })
+        .upsert(upserts, { onConflict: 'user_id,day' })
       if (error) throw error
     }
 

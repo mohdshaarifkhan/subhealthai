@@ -99,3 +99,18 @@ create table if not exists public.risk_scores (
 create index if not exists idx_risk_scores_user_day on public.risk_scores (user_id, day);
 create index if not exists idx_risk_scores_day on public.risk_scores (day);
 
+-- ==============================
+-- Table: explainability_images
+-- ==============================
+
+create table if not exists public.explainability_images (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  day date not null,
+  img_url text not null,
+  created_at timestamptz not null default now(),
+  unique (user_id, day)
+);
+
+create index if not exists idx_explainability_images_user_day on public.explainability_images (user_id, day);
+

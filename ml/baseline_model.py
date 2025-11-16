@@ -14,11 +14,52 @@ import argparse, math, json, datetime as dt
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest
-from ml.config import supabase, MODEL_VERSION_BASELINE
+from typing import Dict
+from ml.config import supabase, MODEL_VERSION_BASELINE, WEIGHTS_V1
 
 # Canonical features used internally
 CANONICAL = ["hrv_mean", "rhr_mean", "sleep_hours", "steps"]
 FEATURES = CANONICAL
+
+# --- Adaptive threshold utilities (drop-in) ---
+def rolling_quantile(xs, q: float = 0.7, w: int = 28):
+    """Compute rolling quantile with window size w.
+    For each position i, uses the last up to w values including i.
+    """
+    out = []
+    buf = []
+    for x in xs:
+        buf.append(x)
+        if len(buf) > w:
+            buf.pop(0)
+        # numpy quantile on current buffer
+        out.append(float(np.quantile(buf, q)))
+    return out
+
+def adaptive_threshold(yhat_cal, q: float = 0.7, w: int = 28):
+    """Return binary decisions comparing predictions to a rolling quantile threshold.
+    - yhat_cal: calibrated probabilities or risk scores (list/array)
+    - q: quantile level (e.g., 0.7)
+    - w: rolling window length (e.g., 28 days)
+    """
+    thresholds = rolling_quantile(yhat_cal, q=q, w=w)
+    return [int(p >= t) for p, t in zip(yhat_cal, thresholds)]
+
+def _sigmoid(x: float) -> float:
+    return 1.0 / (1.0 + math.exp(-x))
+
+def score_features(features: Dict[str, float], weights: Dict[str, float] = WEIGHTS_V1):
+    raw = (
+        weights["b0"]
+        + weights["w_hrv"] * (-features.get("z_hrv", 0.0))
+        + weights["w_rhr"] * ( features.get("z_rhr", 0.0))
+        + weights["w_sleep"]* ( features.get("z_sleep_debt", 0.0))
+        + weights["w_anom"] * ( features.get("anomaly", 0.0))
+        + weights["w_fcast"]* ( features.get("forecast_delta", 0.0))
+    )
+    risk = _sigmoid(raw)
+    # clamp + 4dp
+    return round(raw, 4), round(max(0.0, min(1.0, risk)), 4)
 
 # Flexible alias map to match your existing schema
 ALIASES = {

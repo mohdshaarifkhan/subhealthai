@@ -12,10 +12,29 @@ import pandas as pd
 import torch
 import torch.nn as nn
 from datetime import date, timedelta
+from typing import List, Literal
 from ml.config import supabase, MODEL_VERSION_FORECAST
 
 FEATURES = ["hrv_mean", "rhr_mean", "sleep_hours", "steps"]
 DEVICE = "cpu"
+
+Mode = Literal["naive", "gru", "chronos"]
+
+class ForecastAdapter:
+    def __init__(self, mode: Mode = "naive"):
+        self.mode = mode
+        # TODO: init GRU / Chronos here when you're ready
+
+    def forecast_delta(self, series: List[float]) -> float:
+        if not series or len(series) < 3:
+            return 0.0
+        if self.mode == "naive":
+            last = series[-1]
+            base = sum(series[-min(7, len(series)):]) / min(7, len(series))
+            return float(last - base)
+        # elif self.mode == "gru": ...
+        # elif self.mode == "chronos": ...
+        return 0.0
 
 class GRURegressor(nn.Module):
     def __init__(self, input_dim=4, hidden=32, layers=1):
