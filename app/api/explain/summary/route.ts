@@ -1,22 +1,40 @@
 import { NextResponse } from "next/server";
 
 import { resolveUserId } from "@/lib/resolveUser";
+import { SHAP_DISPLAY } from "@/lib/shapMap";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-const LABEL: Record<string, string> = {
-  rhr: "RHR",
-  hrv: "HRV",
-  hrv_avg: "HRV",
-  sleep: "Sleep",
-  sleep_minutes: "Sleep",
-  steps: "Steps",
-  forecast_delta: "Forecast Δ",
-};
+type Row = { feature: string; shap_value: number; direction: "pos" | "neg" };
 
-const arrow = (x: number) => (x >= 0 ? "↑" : "↓");
+function arrowFor(value: number) {
+  return value >= 0 ? "↑" : "↓";
+}
+
+function pretty(feature: string) {
+  return SHAP_DISPLAY[feature]?.label ?? feature;
+}
+
+function sentence(rows: Row[]) {
+  if (!rows.length) return "No clear contributing factors today.";
+
+  const inc = rows
+    .filter((row) => row.shap_value > 0)
+    .map((row) => `${pretty(row.feature)} ${arrowFor(row.shap_value)}`);
+  const dec = rows
+    .filter((row) => row.shap_value < 0)
+    .map((row) => `${pretty(row.feature)} ${arrowFor(row.shap_value)}`);
+
+  if (inc.length && dec.length) {
+    return `${inc.join(" and ")} increased risk; ${dec.join(" and ")} reduced it.`;
+  }
+
+  if (inc.length) return `${inc.join(" and ")} increased risk.`;
+  if (dec.length) return `${dec.join(" and ")} reduced risk.`;
+  return "No clear contributing factors today.";
+}
 
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
+  const searchParams = new URL(req.url).searchParams;
 
   let user: string;
   try {
@@ -28,8 +46,8 @@ export async function GET(req: Request) {
 
   const version = searchParams.get("version") ?? "phase3-v1-wes";
 
-  const latest = await supabaseAdmin
-    .from("explain_contribs")
+  const { data: latestDay, error: dayError } = await supabaseAdmin
+    .from("risk_scores")
     .select("day")
     .eq("user_id", user)
     .eq("model_version", version)
@@ -37,81 +55,106 @@ export async function GET(req: Request) {
     .limit(1)
     .maybeSingle();
 
-  const anchor = latest.data?.day;
-  if (!anchor) {
-    return NextResponse.json({ user, version, text: null, items: [] });
+  if (dayError) {
+    return NextResponse.json({ error: dayError.message }, { status: 500 });
   }
 
-  let items: Array<{ feature: string; value: number }> = [];
+  const day = latestDay?.day;
+  if (!day) {
+    return NextResponse.json({ user, version, day: null, summary: "No risk day found for this version.", top_contributors: [] });
+  }
 
-  const mv = await supabaseAdmin
-    .from("mv_explain_top4")
-    .select("contribs, day")
-    .eq("user_id", user)
-    .eq("model_version", version)
-    .lte("day", anchor)
-    .order("day", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  let rows: Row[] = [];
 
-  if (mv.data?.contribs?.length) {
-    items = (mv.data.contribs as Array<{ feature: string; value: number }>).
-      slice(0, 4)
-      .map((c) => ({ feature: c.feature, value: Number(c.value) }));
-  } else {
-    const raw = await supabaseAdmin
+  try {
+    const { data: mvRows, error: mvError } = await supabaseAdmin
+      .from("mv_explain_top4")
+      .select("feature, shap_value, direction, rnk, day")
+      .eq("user_id", user)
+      .eq("model_version", version)
+      .lte("day", day)
+      .order("day", { ascending: false })
+      .order("rnk", { ascending: true })
+      .limit(4);
+
+    if (mvError && mvError.code !== "42P01") {
+      throw mvError;
+    }
+
+    if (mvRows?.length) {
+      rows = mvRows.map((row: any) => ({
+        feature: row.feature,
+        shap_value: Number(row.shap_value ?? row.value ?? 0),
+        direction: (row.direction as "pos" | "neg") ?? (Number(row.shap_value ?? row.value ?? 0) >= 0 ? "pos" : "neg"),
+      }));
+    }
+  } catch {
+    rows = [];
+  }
+
+  if (!rows.length) {
+    const { data: rawRows, error: rawError } = await supabaseAdmin
       .from("explain_contribs")
       .select("feature, value, day")
       .eq("user_id", user)
       .eq("model_version", version)
-      .lte("day", anchor)
+      .lte("day", day)
       .order("day", { ascending: false })
       .limit(50);
 
-    if (raw.error) {
-      return NextResponse.json({ error: raw.error.message }, { status: 500 });
+    if (rawError) {
+      return NextResponse.json({ error: rawError.message }, { status: 500 });
     }
 
-    const day0 = raw.data?.[0]?.day;
-    const sameDay = (raw.data ?? [])
-      .filter((entry) => entry.day === day0)
-      .sort((a, b) => Math.abs(Number(b.value)) - Math.abs(Number(a.value)));
+    const latestExplainDay = rawRows?.[0]?.day;
+    const sameDay = (rawRows ?? [])
+      .filter((entry) => entry.day === latestExplainDay)
+      .sort((a, b) => Math.abs(Number(b.value)) - Math.abs(Number(a.value)))
+      .slice(0, 4);
 
-    items = sameDay.slice(0, 4).map((entry) => ({ feature: entry.feature as string, value: Number(entry.value) }));
+    rows = sameDay.map((entry) => ({
+      feature: entry.feature,
+      shap_value: Number(entry.value),
+      direction: Number(entry.value) >= 0 ? "pos" : "neg",
+    }));
   }
 
-  if (!items.length) {
-    return NextResponse.json({ user, version, text: null, items: [] });
-  }
+  const summary = sentence(rows);
 
-  const pos = items.filter((i) => Number(i.value) > 0).map((i) => LABEL[i.feature] ?? i.feature);
-  const neg = items.filter((i) => Number(i.value) < 0).map((i) => LABEL[i.feature] ?? i.feature);
+  void supabaseAdmin
+    .from("audit_log")
+    .insert({
+      user_id: user,
+      action: "explain_summary",
+      details: { version, day, n: rows.length, top: rows },
+    })
+    .then()
+    .catch(() => undefined);
 
-  let text: string;
-  if (pos.length && neg.length) {
-    text = `Today, ${pos.join(" and ")} increased risk; ${neg.join(" and ")} reduced it.`;
-  } else if (pos.length) {
-    text = `Today, ${pos.join(" and ")} increased risk.`;
-  } else {
-    text = `Today, ${neg.join(" and ")} reduced risk.`;
-  }
-
-  const payload = {
-    user,
-    version,
-    items: items.map((item) => ({
-      feature: LABEL[item.feature] ?? item.feature,
-      value: Number(item.value),
-      dir: arrow(Number(item.value)),
-    })),
-    text,
-  };
-
-  return new NextResponse(JSON.stringify(payload), {
-    status: 200,
-    headers: {
-      "Content-Type": "application/json",
-      "Cache-Control": "public, max-age=60, stale-while-revalidate=600",
+  return NextResponse.json(
+    {
+      user,
+      version,
+      day,
+      top_contributors: rows.map((row) => ({
+        feature: row.feature,
+        label: pretty(row.feature),
+        shap_value: row.shap_value,
+        arrow: arrowFor(row.shap_value),
+        effect: row.shap_value >= 0 ? "increases" : "reduces",
+      })),
+      summary,
+      tips: [
+        "Positive SHAP increases risk; negative SHAP reduces it.",
+        "Risk is compared to your own baseline, not other people.",
+      ],
     },
-  });
+    {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "public, max-age=60, stale-while-revalidate=600",
+      },
+    }
+  );
 }

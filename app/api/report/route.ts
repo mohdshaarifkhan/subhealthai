@@ -4,15 +4,30 @@ import { renderToStream } from "@react-pdf/renderer";
 
 import ReportDoc from "@/components/report/ReportDoc";
 import { getDashboard } from "@/lib/getDashboard";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
+
+async function getDefaultUserId() {
+  const { data, error } = await supabaseAdmin
+    .from("risk_scores")
+    .select("user_id, day")
+    .order("day", { ascending: false })
+    .limit(1);
+  if (error) return undefined;
+  return data?.[0]?.user_id as string | undefined;
+}
 
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const { searchParams, origin } = url;
 
-    const user = searchParams.get("user");
+    let user = searchParams.get("user") || process.env.NEXT_PUBLIC_DEMO_USER_ID;
+    if (!user) {
+      user = await getDefaultUserId();
+    }
+
     const version = searchParams.get("version") ?? "phase3-v1-wes";
     const label = searchParams.get("label") ?? undefined;
 
