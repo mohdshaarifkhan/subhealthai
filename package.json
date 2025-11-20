@@ -11,12 +11,15 @@
     "flags:ts": "tsx scripts/compute_flags.ts",
     "flags:py": "python scripts/flagging_engine.py",
     "charts:seed7": "tsx scripts/seed_demo_data.ts && tsx scripts/compute_flags.ts",
-    "flags:week": "node -e \"const d=new Date();for(let i=0;i<=6;i++){const t=new Date(d.getTime()-i*86400000).toISOString().slice(0,10);console.log('flags:',t);require('child_process').spawnSync('npm',['run','flags:ts','--',t],{stdio:'inherit'})}\""
+    "flags:week": "node -e \"const d=new Date();for(let i=0;i<=6;i++){const t=new Date(d.getTime()-i*86400000).toISOString().slice(0,10);console.log('flags:',t);require('child_process').spawnSync('npm',['run','flags:ts','--',t],{stdio:'inherit'})}\"",
+    "gemini": "tsx scripts/gemini-cli.ts"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@react-pdf/renderer": "^4.3.1",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.45.0",
+    "clsx": "^2.1.1",
     "csv-parse": "^6.1.0",
     "dayjs": "^1.11.10",
     "dotenv": "^17.2.2",
@@ -27,8 +30,9 @@
     "pdf-lib": "^1.17.1",
     "react": "18.2.0",
     "react-dom": "18.2.0",
-    "recharts": "^3.2.1",
+    "recharts": "^3.4.1",
     "swr": "^2.3.6",
+    "tailwind-merge": "^3.4.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

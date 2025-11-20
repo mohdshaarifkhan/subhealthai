@@ -3,13 +3,11 @@
 import { useMemo } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
-const DEMO_USER = process.env.NEXT_PUBLIC_DEMO_USER_ID || "c1454b12-cd49-4ae7-8f4d-f261dcda3136";
-
 export function useAppContext() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
 
-  const user = searchParams.get("user") || DEMO_USER;
+  const user = searchParams.get("user") || null;
 
   const version = searchParams.get("version") || "phase3-v1-wes";
   const range = searchParams.get("range") || "7d";

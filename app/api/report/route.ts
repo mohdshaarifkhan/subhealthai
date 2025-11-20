@@ -24,7 +24,7 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const { searchParams, origin } = url;
 
-    let user = searchParams.get("user") || process.env.NEXT_PUBLIC_DEMO_USER_ID;
+    let user = searchParams.get("user");
     if (!user) {
       user = await getDefaultUserId();
     }

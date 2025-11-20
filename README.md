@@ -203,6 +203,120 @@ You can test SubHealthAI locally in 60 seconds:
 
 ---
 
+## 🤖 ML Model Integration (FastAPI + Next.js)
+
+SubHealthAI includes a **FastAPI-based ML inference service** that provides real-time risk predictions from trained Random Forest models. This enables the Next.js frontend to call Python ML models for diabetes/metabolic and cardiovascular risk assessment.
+
+### Architecture
+
+```
+Next.js Frontend → /api/ml/predict → FastAPI Service (Python) → Trained Models (.pkl)
+```
+
+### Setup Instructions
+
+#### 1. Train the Models
+
+First, train the diabetes and cardiac risk models:
+
+```bash
+cd ml
+python -m ml.train_model
+```
+
+This will create:
+- `ml/models/diabetes_model.pkl`
+- `ml/models/cardio_model.pkl`
+- Metadata JSON files for each model
+
+#### 2. Install Python Dependencies
+
+```bash
+cd ml
+pip install -r requirements.txt
+```
+
+Required packages include: `fastapi`, `uvicorn`, `pydantic`, `joblib`, `scikit-learn`, `pandas`, `numpy`.
+
+#### 3. Start the FastAPI Service
+
+```bash
+cd ml
+uvicorn api:app --host 0.0.0.0 --port 8000 --reload
+```
+
+The service will be available at `http://localhost:8000` with:
+- Health check: `GET http://localhost:8000/health`
+- API docs: `http://localhost:8000/docs` (Swagger UI)
+
+#### 4. Configure Next.js Environment
+
+Add to your `.env.local`:
+
+```env
+ML_API_URL=http://localhost:8000
+```
+
+#### 5. Use in Next.js
+
+The Next.js API route `/api/ml/predict` acts as a proxy to the FastAPI service:
+
+**Diabetes Risk Prediction:**
+```typescript
+const response = await fetch('/api/ml/predict?type=diabetes', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    glucose: 140,
+    bmi: 32,
+    age: 45,
+    bp: 130
+  })
+});
+const result = await response.json();
+// Returns: { risk_score: 75.2, risk_level: "High", probability: 0.752, ... }
+```
+
+**Cardiovascular Risk Prediction:**
+```typescript
+const response = await fetch('/api/ml/predict?type=cardio', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    age: 55,
+    systolic_bp: 145,
+    cholesterol: 250,
+    resting_hr: 78
+  })
+});
+```
+
+### API Endpoints
+
+**FastAPI Service (`ml/api.py`):**
+- `POST /predict/diabetes` - Diabetes/metabolic risk prediction
+- `POST /predict/cardio` - Cardiovascular risk prediction
+- `GET /health` - Service health check
+- `GET /` - Root health check endpoint
+
+**Next.js Proxy (`app/api/ml/predict/route.ts`):**
+- `POST /api/ml/predict?type=diabetes` - Proxy to FastAPI diabetes endpoint
+- `POST /api/ml/predict?type=cardio` - Proxy to FastAPI cardiovascular endpoint
+- `GET /api/ml/predict` - Health check for ML service connectivity
+
+### Important Notes
+
+⚠️ **NON-DIAGNOSTIC USE ONLY**: The current live deployment uses pre-calculated inference results derived from our Random Forest models trained on the Pima Indians Diabetes Database to demonstrate UI responsiveness. For production medical device use, Option B (real FastAPI integration) is required with proper validation, calibration, and regulatory compliance.
+
+**For Production:**
+- Deploy FastAPI service with proper authentication/authorization
+- Add rate limiting and request validation
+- Implement model versioning and A/B testing
+- Add comprehensive logging and monitoring
+- Follow FDA SaMD guidelines for clinical validation
+
+---
+
 ## 🗂 Database Schema
 Key tables in `/supabase/schema.sql`:
 - `users` → profiles and auth linkage  

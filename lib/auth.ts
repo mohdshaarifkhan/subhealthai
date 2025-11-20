@@ -7,7 +7,7 @@ export interface User {
 
 /**
  * Extract and validate user from request.
- * For now, expects ?user query param or Authorization header.
+ * Requires ?user query param or Authorization header.
  * TODO: Implement proper session/auth token validation.
  */
 export async function requireUser(req: Request): Promise<User> {
@@ -21,8 +21,7 @@ export async function requireUser(req: Request): Promise<User> {
   }
 
   // TODO: Extract from Authorization header or session
-  // For now, fallback to demo user
-  const userId = await resolveUserId("demo");
-  return { id: userId };
+  // For now, require explicit user parameter
+  throw new Error("User parameter required. Provide ?user=... in query string.");
 }
 
