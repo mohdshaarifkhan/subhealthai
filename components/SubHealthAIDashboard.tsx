@@ -1,1229 +1,1639 @@
+// @ts-nocheck
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  LayoutDashboard, Activity, FileText, ShieldCheck, Settings, 
-  LogOut, Menu, Bell, Search, TrendingUp, Zap, Moon, Heart, 
-  ChevronRight, Watch, Flame, Droplet, User, ArrowUpRight,
-  Dna, Smartphone, Thermometer, Microscope, FileJson, Eye,
-  Download, CheckCircle2, AlertTriangle, RefreshCcw, Info,
-  Coffee, Cigarette, Dumbbell, BedDouble, Lock, ArrowRight, X,
-  MessageSquare, CheckCircle, Database, BarChart2, Share2, Brain, Sparkles, Send, 
-  Scale, Footprints, AlertCircle, Calendar
+  Activity, Brain, Shield, ChevronRight, Play, ScanLine, Globe, Zap, 
+  ArrowRight, Lock, ShieldCheck, Heart, Wind, Thermometer, 
+  Database, Settings, User, Fingerprint, Layers, TrendingUp, 
+  GitCommit, MessageSquare, LogOut, Search, Menu, Bell, X,
+  Cpu, LayoutGrid, FileText, Mail, Key, AlertTriangle, 
+  Stethoscope, Microscope, Watch, CheckCircle, BarChart2,
+  UploadCloud, File, Plus, Trash2, Smartphone, CheckSquare, FlaskConical
 } from 'lucide-react';
-import { 
-  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, 
-  ReferenceLine, CartesianGrid, ScatterChart, Scatter, LineChart, Line, Legend, BarChart, Bar,
-  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Cell
-} from 'recharts';
-import { useActiveUser } from "@/utils/useActiveUser";
-import { useRiskData } from "@/app/hooks/useRiskData";
-import useSWR from "swr";
 
-// -----------------------------------------------------------------------------
-// 1. MOCK DATA & PROFILES
-// -----------------------------------------------------------------------------
-
-// Helper for deterministic trend generation
-const generateTrend = (base: number, variance: number, length = 30, trend = 0) => {
-  return Array.from({ length }, (_, i) => ({
-    day: `D-${length - i}`,
-    value: Math.max(0, base + (Math.sin(i * 0.5) * variance) + (i * trend)) 
-  }));
+// --- THEME & UTILS ---
+const COLORS = {
+  bg: 'bg-[#02040a]',
+  card: 'bg-slate-900/40',
+  border: 'border-white/5',
+  borderHover: 'border-cyan-500/30',
+  text: 'text-slate-300',
+  textMuted: 'text-slate-500',
+  accent: 'text-cyan-400',
+  accentBg: 'bg-cyan-500',
+  risk: 'text-amber-400',
+  riskBg: 'bg-amber-500',
+  danger: 'text-rose-500',
+  dangerBg: 'bg-rose-500',
 };
 
-const USER_PROFILES = {
+// --- DATA MOCKS ---
+const MOCK_DATA = {
   healthy: {
-    id: 'SUB-8821-A',
-    name: 'Alex Rivera (Healthy Demo)',
-    riskScore: 12, 
-    riskLevel: 'Stable',
-    statusColor: 'emerald',
-    trend: generateTrend(12, 2, 30, -0.05),
-    hrv: { current: 68, baseline: 65, status: 'Optimal' },
-    rhr: { current: 54, baseline: 55, status: 'Optimal' },
-    sleep: { current: 7.8, baseline: 7.5, status: 'Optimal' },
-    bp: '118/76',
-    bmi: { value: 22.4, status: 'Normal' },
-    steps: { current: 10450, status: 'Active' },
-    stress: { score: 15, status: 'Low' },
-    allergies: ['None Reported'],
+    instabilityScore: 12,
+    status: 'STABLE',
+    narrative: "Autonomic load is low. Sleep and recovery are aligned with your 28-day baseline. Parasympathetic tone is dominant.",
+    vitals: { hrv: 115, rhr: 48, resp: 14, temp: 98.2 },
+    trends: { hrv: 'up', rhr: 'stable' },
+    drivers: [
+      { name: 'Deep Sleep', impact: -15, value: '1.5h' }, // Negative impact = lowers risk (good)
+      { name: 'Training Load', impact: 5, value: 'High' },
+      { name: 'Caffeine', impact: 2, value: 'Early' }
+    ],
+    drift: { metabolic: 'Low', cardio: 'Low', inflammation: 'Normal' },
+    sleep: { deep: 1.8, rem: 2.1, light: 3.5, awake: 0.4 },
     labs: [
-      { name: 'HbA1c', value: 5.1, unit: '%', status: 'normal' },
-      { name: 'LDL-C', value: 95, unit: 'mg/dL', status: 'normal' },
-      { name: 'hs-CRP', value: 0.8, unit: 'mg/L', status: 'normal' },
-      { name: 'Vit D', value: 45, unit: 'ng/mL', status: 'normal' },
-    ],
-    conditions: [
-      { name: 'Metabolic', risk: 8, status: 'low' },
-      { name: 'Cardiovascular', risk: 14, status: 'low' },
-      { name: 'Inflammatory', risk: 5, status: 'low' }
-    ],
-    predictions: [
-        { name: 'Prediabetes', prob: 'Low (<5%)', status: 'normal' },
-        { name: 'Sleep Apnea', prob: 'Low (<2%)', status: 'normal' },
-        { name: 'Hypertension', prob: 'Low (<10%)', status: 'normal' }
-    ],
-    shapValues: [
-      { feature: 'Sleep Regularity', value: 0.15, impact: 'positive' },
-      { feature: 'Resting HR', value: 0.12, impact: 'positive' },
-      { feature: 'Activity Lvl', value: 0.08, impact: 'positive' },
-      { feature: 'Stress (Crt)', value: -0.02, impact: 'negative' },
-    ],
-    summary: {
-        concern: "Maintenance of Healthy Baseline",
-        change: "Improved Sleep Consistency (+12%)",
-        actions: [
-            "Maintain current sleep schedule (23:00 - 07:00)",
-            "Consider increasing Zone 2 cardio to improve VO2 Max",
-            "Schedule annual metabolic panel in 3 months"
-        ]
-    },
-    intervention: "Great stability. Maintain your current sleep schedule and zone 2 cardio."
+      { name: 'hs-CRP', value: '0.5', unit: 'mg/L', status: 'Optimal' },
+      { name: 'Fasting Glucose', value: '85', unit: 'mg/dL', status: 'Optimal' },
+      { name: 'HbA1c', value: '5.1', unit: '%', status: 'Optimal' }
+    ]
   },
   risk: {
-    id: 'SUB-9942-C',
-    name: 'Jordan Lee (High-Risk Demo)',
-    riskScore: 78, 
-    riskLevel: 'Unstable',
-    statusColor: 'rose',
-    trend: generateTrend(60, 8, 30, 0.8), 
-    hrv: { current: 32, baseline: 55, status: 'Critical Drop' },
-    rhr: { current: 78, baseline: 62, status: 'Elevated' },
-    sleep: { current: 5.2, baseline: 7.0, status: 'Deficit' },
-    bp: '148/94',
-    bmi: { value: 29.1, status: 'Overweight' },
-    steps: { current: 2100, status: 'Sedentary' },
-    stress: { score: 85, status: 'High' },
-    allergies: ['Ragweed (Seasonal)', 'Penicillin'],
+    instabilityScore: 84,
+    status: 'VOLATILE',
+    narrative: "Suppressed HRV and elevated resting HR vs your 28-day baseline suggest ongoing subclinical stress. Sympathetic overdrive detected.",
+    vitals: { hrv: 22, rhr: 68, resp: 18, temp: 99.1 },
+    trends: { hrv: 'down', rhr: 'up' },
+    drivers: [
+      { name: 'Deep Sleep Deficit', impact: 45, value: '0.4h' }, // Positive impact = increases risk (bad)
+      { name: 'hs-CRP', impact: 32, value: '3.2mg/L' },
+      { name: 'Late Caffeine', impact: 15, value: '9 PM' }
+    ],
+    drift: { metabolic: 'Moderate', cardio: 'Elevated', inflammation: 'Elevated' },
+    sleep: { deep: 0.4, rem: 1.1, light: 4.2, awake: 1.5 },
     labs: [
-      { name: 'HbA1c', value: 6.2, unit: '%', status: 'warning' },
-      { name: 'LDL-C', value: 160, unit: 'mg/dL', status: 'critical' },
-      { name: 'hs-CRP', value: 4.2, unit: 'mg/L', status: 'critical' },
-      { name: 'Cortisol', value: 22, unit: 'mcg/dL', status: 'warning' },
-    ],
-    conditions: [
-      { name: 'Metabolic', risk: 65, status: 'high' },
-      { name: 'Cardiovascular', risk: 82, status: 'critical' },
-      { name: 'Inflammatory', risk: 70, status: 'high' }
-    ],
-    predictions: [
-        { name: 'Prediabetes', prob: 'High (85%)', status: 'warning' },
-        { name: 'Sleep Apnea', prob: 'Moderate (45%)', status: 'warning' },
-        { name: 'Hypertension', prob: 'High (92%)', status: 'critical' }
-    ],
-    shapValues: [
-      { feature: 'HRV Decline', value: -0.35, impact: 'negative' },
-      { feature: 'Sleep Debt', value: -0.28, impact: 'negative' },
-      { feature: 'BP Spike', value: -0.22, impact: 'negative' },
-      { feature: 'Social Jetlag', value: -0.10, impact: 'negative' },
-    ],
-    summary: {
-        concern: "Cardiovascular Instability & Inflammation",
-        change: "Spike in Morning Cortisol & HRV Drop",
-        actions: [
-            "Consult physician regarding potential Prediabetes markers",
-            "Screen for Obstructive Sleep Apnea (OSA)",
-            "Increase daily steps to 5,000 (Low Intensity)",
-            "Reduce caffeine intake after 12:00 PM"
-        ]
-    },
-    intervention: "Significant divergence detected. Reduce caffeine intake and review recent blood panel."
+      { name: 'hs-CRP', value: '3.2', unit: 'mg/L', status: 'High' },
+      { name: 'Fasting Glucose', value: '104', unit: 'mg/dL', status: 'Elevated' },
+      { name: 'HbA1c', value: '5.8', unit: '%', status: 'Borderline' }
+    ]
   }
 };
 
-// Shared Vitals Data for Charts
-const VITALS_DATA = [
-  { time: '08:00', hr: 62, bp: 118 }, { time: '10:00', hr: 75, bp: 122 },
-  { time: '12:00', hr: 88, bp: 125 }, { time: '14:00', hr: 70, bp: 120 },
-  { time: '16:00', hr: 65, bp: 119 }, { time: '18:00', hr: 92, bp: 130 },
-];
-
-// Color mapping for dynamic classes
-const statusColorMap: Record<string, { bg: string; text: string; border: string }> = {
-  emerald: {
-    bg: 'bg-emerald-500',
-    text: 'text-emerald-400',
-    border: 'border-emerald-500/20'
-  },
-  rose: {
-    bg: 'bg-rose-500',
-    text: 'text-rose-400',
-    border: 'border-rose-500/20'
-  },
-  amber: {
-    bg: 'bg-amber-500',
-    text: 'text-amber-400',
-    border: 'border-amber-500/20'
-  },
-  teal: {
-    bg: 'bg-teal-500',
-    text: 'text-teal-400',
-    border: 'border-teal-500/20'
-  }
-};
-
-// -----------------------------------------------------------------------------
-// 2. UI COMPONENTS
-// -----------------------------------------------------------------------------
-
-const StatusBadge = ({ status }: { status: string }) => {
-  const colors: Record<string, string> = {
-    normal: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    low: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    warning: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-    high: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
-    critical: 'bg-rose-600/20 text-rose-500 border-rose-600/30',
-    'Critical Drop': 'bg-rose-600/20 text-rose-500 border-rose-600/30',
-    'Elevated': 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-    'Optimal': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    'Deficit': 'bg-rose-500/10 text-rose-400 border-rose-500/20',
-    'Overweight': 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-    'Active': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    'Sedentary': 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-  };
-  
-  const style = colors[status] || colors['normal'];
+// --- CHART PRIMITIVES (SVG) ---
+const MiniAreaChart = ({ data, color, height = 100 }) => {
+  const max = Math.max(...data, 1);
+  const min = Math.min(...data, 0);
+  const range = max - min || 1;
+  const points = data.map((val, i) => {
+    const x = (i / (data.length - 1)) * 100;
+    const y = 100 - ((val - min) / range) * 100;
+    return `${x},${y}`;
+  }).join(' ');
 
   return (
-    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${style}`}>
-      {status}
-    </span>
+    <div className="w-full overflow-hidden relative" style={{ height: `${height}%` }}>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full overflow-visible">
+        <defs>
+          <linearGradient id={`grad-${color}`} x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={`M0,100 ${points} 100,100 Z`} fill={`url(#grad-${color})`} />
+        <polyline points={points} fill="none" stroke={color} strokeWidth="2" vectorEffect="non-scaling-stroke" />
+      </svg>
+    </div>
   );
 };
 
-const Card = ({ children, className = "", title, action, icon: Icon }: any) => (
-  <div className={`bg-slate-900/50 border border-slate-800 rounded-2xl p-5 shadow-lg backdrop-blur-sm ${className}`}>
-    {(title || action) && (
-      <div className="flex justify-between items-center mb-4">
-        {title && <h3 className="text-slate-400 font-semibold text-xs tracking-widest uppercase flex items-center gap-2">
-          {Icon && <Icon size={16} className="text-slate-500" />}
-          {title}
-        </h3>}
-        {action && <div>{action}</div>}
+const SHAPBarChart = ({ drivers, onSelect }) => {
+  const maxVal = Math.max(...drivers.map(d => Math.abs(d.impact)));
+  
+  return (
+    <div className="flex flex-col gap-3 w-full">
+      {drivers.map((d, i) => {
+        const isNegative = d.impact < 0; // Negative impact lowers risk (Good)
+        const width = (Math.abs(d.impact) / maxVal) * 100;
+        const color = isNegative ? 'bg-emerald-500' : 'bg-rose-500';
+        
+        return (
+          <div 
+            key={i} 
+            className="flex items-center gap-4 text-xs font-mono cursor-pointer hover:bg-white/5 p-1 rounded transition-colors"
+            onClick={() => onSelect && onSelect(d)}
+          >
+            <div className="w-24 text-right text-slate-400 truncate">{d.name}</div>
+            <div className="flex-1 h-6 bg-slate-900 rounded relative overflow-hidden flex items-center">
+              <div className="absolute left-1/2 w-px h-full bg-slate-700 z-10" />
+              <div 
+                className={`h-4 rounded-sm ${color} transition-all duration-1000 ease-out`}
+                style={{ 
+                  width: `${width/2}%`, 
+                  marginLeft: isNegative ? `${50 - (width/2)}%` : '50%',
+                  opacity: 0.8
+                }} 
+              />
+            </div>
+            <div className="w-12 text-slate-300 tabular-nums text-right">
+              {d.impact > 0 ? '+' : ''}{d.impact}
+            </div>
+          </div>
+        );
+      })}
+      <div className="flex justify-between text-[9px] text-slate-500 uppercase font-mono px-4 mt-1">
+        <span>← Lowers Instability</span>
+        <span>Increases Instability →</span>
+      </div>
+    </div>
+  );
+};
+
+// --- UI COMPONENTS ---
+const BentoCard = ({ children, className = "", title, icon: Icon, delay = 0, colSpan = "col-span-1", rowSpan = "row-span-1", glowing = false, warning = false }) => (
+  <div
+    className={`
+      group relative overflow-hidden ${COLORS.card} backdrop-blur-md
+      border ${glowing ? 'border-amber-500/30' : warning ? 'border-rose-500/30' : COLORS.border}
+      hover:border-cyan-500/30 transition-all duration-700 ease-out
+      flex flex-col p-6 rounded-2xl
+      ${colSpan} ${rowSpan} ${className}
+    `}
+    style={{ animation: `fadeInUp 0.6s ease-out forwards ${delay}ms`, opacity: 0, transform: 'translateY(10px)' }}
+  >
+    {glowing && <div className="absolute inset-0 bg-amber-500/5 animate-pulse pointer-events-none" />}
+    <div className="absolute inset-0 bg-gradient-to-b from-transparent via-cyan-400/[0.03] to-transparent translate-y-[-100%] group-hover:translate-y-[100%] transition-transform duration-1000 ease-in-out pointer-events-none z-0" />
+    
+    {(title || Icon) && (
+      <div className="flex items-center justify-between mb-6 relative z-10">
+        <div className="flex items-center gap-2">
+          {Icon && <Icon size={14} className="text-slate-500 group-hover:text-cyan-400 transition-colors" />}
+          {title && (
+            <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-mono group-hover:text-slate-300 transition-colors">
+              {title}
+            </span>
+          )}
+        </div>
+        <div className={`h-1.5 w-1.5 rounded-full ${glowing ? 'bg-amber-500 shadow-[0_0_8px_2px_rgba(245,158,11,0.5)]' : warning ? 'bg-rose-500' : 'bg-slate-800 group-hover:bg-cyan-500'} transition-colors duration-300`} />
       </div>
     )}
-    {children}
+    <div className="relative z-10 flex-1 flex flex-col min-h-0">
+      {children}
+    </div>
   </div>
 );
 
-// -----------------------------------------------------------------------------
-// 3. FLOATING COPILOT OVERLAY
-// -----------------------------------------------------------------------------
-
-const CopilotOverlay = ({ isOpen, onClose, user }: { isOpen: boolean, onClose: () => void, user: any }) => {
-  const [input, setInput] = useState('');
-  const messagesEndRef = useRef<null | HTMLDivElement>(null);
-
-  if (!isOpen) return null;
-
-  const initialMessage = user.riskScore > 50 
-    ? "I've detected a significant divergence in your cardiovascular baseline. Your HRV has dropped 40% below your 30-day average. Would you like to analyze the potential causes?" 
-    : "Your metrics look stable today. Recovery is optimal (HRV: 68ms). Is there anything specific you'd like to review regarding your sleep or activity?";
-
-  return (
-    <div className="fixed bottom-24 right-4 md:right-8 w-[90vw] md:w-[450px] h-[600px] max-h-[80vh] bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl z-50 flex flex-col animate-in slide-in-from-bottom-10 zoom-in-95 duration-300 overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-slate-900/80 backdrop-blur">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-teal-500/10 rounded-lg flex items-center justify-center">
-             <Sparkles size={16} className="text-teal-400" />
-          </div>
-          <div>
-             <span className="font-bold text-slate-200 block text-sm">Health Intelligence</span>
-             <span className="text-[10px] text-slate-500 flex items-center gap-1"><Lock size={8}/> Private & Secure</span>
-          </div>
-        </div>
-        <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 transition-colors">
-          <X size={18} />
-        </button>
-      </div>
-
-      {/* Chat Body */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-950">
-        
-        {/* AI Message */}
-        <div className="flex gap-3">
-          <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-blue-600 rounded-full flex items-center justify-center shrink-0 shadow-lg shadow-teal-900/20 mt-1">
-            <Zap size={14} className="text-white" />
-          </div>
-          <div className="space-y-2 max-w-[85%]">
-             <div className="bg-slate-900 border border-slate-800 p-3 rounded-2xl rounded-tl-none text-slate-300 text-sm leading-relaxed shadow-sm">
-                {initialMessage}
-             </div>
-          </div>
-        </div>
-
-        {/* Context Chips */}
-        <div className="flex flex-wrap gap-2 pl-11">
-           {user.riskScore > 50 ? (
-             <>
-                <span className="text-[10px] bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-1 rounded-full">High Anomaly</span>
-                <span className="text-[10px] bg-slate-800 text-slate-400 border border-slate-700 px-2 py-1 rounded-full">Cortisol Spike</span>
-             </>
-           ) : (
-             <>
-                <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-1 rounded-full">Optimal State</span>
-             </>
-           )}
-        </div>
-
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Suggestions */}
-      <div className="p-2 bg-slate-950 border-t border-slate-900">
-        <div className="flex gap-2 overflow-x-auto pb-2 px-2 scrollbar-hide">
-          {[
-            "Why did my score change?",
-            "Explain the HRV drop",
-            "Draft clinical summary"
-          ].map((prompt, i) => (
-            <button key={i} className="whitespace-nowrap text-[11px] bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-teal-400 px-3 py-2 rounded-lg transition-colors border border-slate-800">
-              {prompt}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Input */}
-      <div className="p-3 bg-slate-900 border-t border-slate-800">
-        <div className="relative flex items-center gap-2">
-          <input 
-            type="text" 
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask about your biomarkers..." 
-            className="flex-1 bg-slate-950 text-slate-200 rounded-xl pl-4 pr-4 py-3 text-sm border border-slate-800 focus:border-teal-500/50 focus:outline-none focus:ring-1 focus:ring-teal-500/50 transition-all placeholder:text-slate-600"
-          />
-          <button className="p-3 bg-teal-600 rounded-xl hover:bg-teal-500 text-white transition-colors shadow-lg shadow-teal-900/20">
-            <Send size={16} />
-          </button>
-        </div>
-      </div>
+const StatValue = ({ value, unit, size = "large", trend, trendVal, isRisk }) => (
+  <div>
+    <div className="flex items-baseline gap-1">
+      <span className={`font-['Unbounded'] font-light tracking-tighter text-white ${size === "large" ? "text-4xl" : "text-2xl"}`}>
+        {value}
+      </span>
+      {unit && <span className="text-xs font-mono text-slate-600 uppercase">{unit}</span>}
     </div>
-  );
-};
-
-// -----------------------------------------------------------------------------
-// 4. PAGE VIEWS
-// -----------------------------------------------------------------------------
-
-const OverviewView = ({ user, onAction }: { user: any, onAction: any }) => {
-  const isRisk = user.riskScore > 50;
-  const colorMap = statusColorMap[user.statusColor] || statusColorMap.emerald;
-  
-  return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Top Row: Score & Summary */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Main Risk Score */}
-        <Card className="lg:col-span-1 relative overflow-hidden group">
-          <div className={`absolute top-0 left-0 w-1 h-full ${colorMap.bg} opacity-80`}></div>
-          <div className="flex flex-col h-full justify-between relative z-10">
-            <div>
-              <div className="flex justify-between items-start">
-                  <h2 className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-2">
-                      <Activity size={14} /> Instability Score
-                  </h2>
-                  <StatusBadge status={user.riskLevel} />
-              </div>
-              <div className="flex items-baseline gap-3 mt-4">
-                <span className={`text-7xl font-bold ${colorMap.text} tracking-tighter`}>{user.riskScore}%</span>
-              </div>
-              <p className="text-slate-500 text-xs mt-2 leading-relaxed">
-                Calculated via Isolation Forest + GRU Ensemble.<br/>
-                Baseline Ref: 90-day rolling avg.
-              </p>
-            </div>
-            <button 
-              onClick={() => onAction('explainability')}
-              className="mt-6 w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-xl transition-colors flex items-center justify-center gap-2 border border-slate-700"
-            >
-              <Brain size={14} /> Analyze Risk Drivers
-            </button>
-          </div>
-          <div className={`absolute -bottom-10 -right-10 w-32 h-32 ${colorMap.bg}/10 blur-3xl rounded-full pointer-events-none`}></div>
-        </Card>
-
-        {/* DAILY HEALTH BRIEF */}
-        <Card title="Daily Health Brief" className="lg:col-span-2" icon={FileText}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
-             <div className="space-y-4 border-r border-slate-800 pr-6">
-                <div>
-                    <label className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Primary Concern</label>
-                    <p className="text-sm font-medium text-slate-200 mt-1">{user.summary.concern}</p>
-                </div>
-                <div>
-                    <label className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Notable Change</label>
-                    <p className="text-sm font-medium text-slate-200 mt-1">{user.summary.change}</p>
-                </div>
-                <div className="pt-2">
-                    <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${isRisk ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{width: `${user.riskScore}%`}}></div>
-                    </div>
-                    <p className="text-[10px] text-slate-500 mt-2 text-right">Confidence: 94.2%</p>
-                </div>
-             </div>
-
-             <div className="pl-2">
-                <label className="text-[10px] uppercase text-teal-500 font-bold tracking-wider flex items-center gap-1 mb-3">
-                    <Sparkles size={10} /> Suggested Actions
-                </label>
-                <ul className="space-y-3">
-                    {user.summary.actions.map((action: string, i: number) => (
-                        <li key={i} className="flex gap-3 text-xs text-slate-300 leading-relaxed group">
-                            <span className="w-1.5 h-1.5 rounded-full bg-slate-600 mt-1.5 group-hover:bg-teal-400 transition-colors"></span>
-                            {action}
-                        </li>
-                    ))}
-                </ul>
-             </div>
-          </div>
-        </Card>
+    {trend && (
+      <div className={`flex items-center gap-1 text-[10px] mt-1 font-mono uppercase tracking-wider ${isRisk ? 'text-amber-400' : 'text-emerald-400'}`}>
+        <span>{trend === 'up' ? '▲' : '▼'}</span>
+        <span>{trendVal}</span>
       </div>
-
-      {/* CLINICAL PREDICTIONS (New!) */}
-      <Card title="Clinical Risk Projections (ML)" icon={AlertCircle}>
-         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-             {user.predictions.map((pred: any, i: number) => (
-                 <div key={i} className="p-4 bg-slate-950/40 rounded-xl border border-slate-800 hover:border-slate-700 transition-colors">
-                     <div className="flex justify-between items-start mb-2">
-                         <span className="text-xs text-slate-400 uppercase font-bold">{pred.name}</span>
-                         <div className={`w-2 h-2 rounded-full ${pred.status === 'normal' ? 'bg-emerald-500' : pred.status === 'warning' ? 'bg-amber-500' : 'bg-rose-500'}`}></div>
-                     </div>
-                     <p className={`text-lg font-bold ${pred.status === 'normal' ? 'text-emerald-400' : pred.status === 'warning' ? 'text-amber-400' : 'text-rose-400'}`}>
-                         {pred.prob}
-                     </p>
-                 </div>
-             ))}
-         </div>
-      </Card>
-
-      {/* LIFESTYLE METRICS (New!) */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-         <Card title="Resting Heart Rate" icon={Heart} className="md:col-span-1">
-             <div className="space-y-4">
-                 <div>
-                     <div className="flex justify-between items-center mb-1">
-                         <span className="text-sm text-slate-400">Current</span>
-                         <span className="text-sm font-bold text-slate-200">{user.rhr.current} bpm</span>
-                     </div>
-                     <p className="text-[10px] text-slate-600 mb-2">Typical range: 60 - 100 bpm</p>
-                 </div>
-                 <div className="flex justify-between items-center p-2 bg-slate-950/50 rounded-lg">
-                     <span className="text-sm text-slate-400">Baseline</span>
-                     <span className="text-sm font-mono text-slate-500">{user.rhr.baseline} bpm</span>
-                 </div>
-                 <StatusBadge status={user.rhr.status} />
-             </div>
-         </Card>
-
-         <Card title="Activity & Composition" icon={Footprints} className="md:col-span-1">
-             <div className="space-y-4">
-                 <div>
-                     <div className="flex justify-between items-center mb-1">
-                         <span className="text-sm text-slate-400">Step Count</span>
-                         <span className="text-sm font-mono text-slate-200">{user.steps.current}</span>
-                     </div>
-                     <p className="text-[10px] text-slate-600 mb-2">Typical range: 7,000 - 10,000 steps/day</p>
-                     <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                         <div className="h-full bg-blue-500 rounded-full" style={{width: `${Math.min(100, (user.steps.current/10000)*100)}%`}}></div>
-                     </div>
-                 </div>
-                 <div className="flex justify-between items-center pt-2 border-t border-slate-800">
-                     <span className="text-sm text-slate-400">BMI</span>
-                     <div className="text-right">
-                         <span className="text-sm font-mono text-slate-200 block">{user.bmi.value}</span>
-                         <StatusBadge status={user.bmi.status} />
-                     </div>
-                 </div>
-             </div>
-         </Card>
-
-         <Card title="Stress Load (HRV Derived)" icon={Zap} className="md:col-span-1">
-             <div className="flex flex-col items-center justify-center h-full py-2">
-                 <div className="relative w-32 h-32">
-                     <svg className="w-full h-full transform -rotate-90">
-                         <circle cx="64" cy="64" r="56" stroke="#1e293b" strokeWidth="12" fill="transparent" />
-                         <circle cx="64" cy="64" r="56" stroke={user.stress.score > 50 ? '#f43f5e' : '#10b981'} strokeWidth="12" fill="transparent" strokeDasharray="351" strokeDashoffset={351 - (user.stress.score/100)*351} strokeLinecap="round" />
-                     </svg>
-                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                         <span className="text-3xl font-bold text-white">{user.stress.score}</span>
-                         <span className="text-[10px] text-slate-500 uppercase">Index</span>
-                     </div>
-                 </div>
-             </div>
-         </Card>
-
-         <Card title="Sleep & Recovery" icon={Moon} className="md:col-span-1">
-             <div className="space-y-4">
-                 <div>
-                     <div className="flex justify-between items-center p-3 bg-slate-950/50 rounded-lg mb-1">
-                         <span className="text-sm text-slate-400">Duration</span>
-                         <span className="text-sm font-bold text-slate-200">{user.sleep.current}h</span>
-                     </div>
-                     <p className="text-[10px] text-slate-600 px-3 mb-2">Typical range: 7-9 hours/night</p>
-                 </div>
-                 <div className="flex justify-between items-center p-3 bg-slate-950/50 rounded-lg">
-                     <span className="text-sm text-slate-400">Baseline</span>
-                     <span className="text-sm font-mono text-slate-500">{user.sleep.baseline}h</span>
-                 </div>
-                 <StatusBadge status={user.sleep.status} />
-             </div>
-         </Card>
-      </div>
-    </div>
-  );
-};
-
-const MultimodalView = ({ user }: { user: any }) => (
-  <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <Card title="Recent Lab Panel (Simulated)" icon={Microscope}>
-        <div className="space-y-4">
-          {user.labs.map((lab: any, i: number) => (
-            <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-slate-950/30 border border-slate-800/50 hover:border-slate-700 transition-colors">
-              <div>
-                <p className="text-sm font-medium text-slate-200">{lab.name}</p>
-                <p className="text-[10px] text-slate-500">Last updated: 2d ago</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-mono text-slate-300">{lab.value} <span className="text-slate-600">{lab.unit}</span></span>
-                <div className={`w-2 h-2 rounded-full ${lab.status === 'critical' ? 'bg-rose-500 animate-pulse' : lab.status === 'warning' ? 'bg-amber-500' : 'bg-emerald-500'}`} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      {/* ALLERGIES & IMMUNE (New!) */}
-      <Card title="Allergies & Immunological Status" icon={Dna}>
-          <div className="space-y-3">
-              {user.allergies.map((allergy: string, i: number) => (
-                  <div key={i} className="flex items-center justify-between p-3 bg-slate-950/30 border border-slate-800/50 rounded-xl">
-                      <span className="text-sm text-slate-300">{allergy}</span>
-                      <span className="text-[10px] bg-slate-800 px-2 py-1 rounded text-slate-400">Active</span>
-                  </div>
-              ))}
-              <div className="mt-4 pt-4 border-t border-slate-800">
-                  <div className="flex justify-between items-center mb-2">
-                      <span className="text-xs text-slate-500 uppercase font-bold">IgE Levels</span>
-                      <span className={`text-xs font-bold ${user.id.includes('9942') ? 'text-rose-400' : 'text-emerald-400'}`}>{user.id.includes('9942') ? 'High (245 kU/L)' : 'Normal (<100 kU/L)'}</span>
-                  </div>
-                  <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full ${user.id.includes('9942') ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{width: user.id.includes('9942') ? '80%' : '20%'}}></div>
-                  </div>
-              </div>
-          </div>
-      </Card>
-    </div>
-
-    <Card title="Vitals Monitoring (24h)" className="h-80">
-        <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={VITALS_DATA}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                <XAxis dataKey="time" stroke="#64748b" tick={{fontSize: 11}} />
-                <YAxis stroke="#64748b" tick={{fontSize: 11}} />
-                <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #1e293b' }} />
-                <Legend />
-                <Line type="monotone" dataKey="bp" stroke="#60a5fa" strokeWidth={2} name="BP (Sys)" dot={{r:3}} />
-                <Line type="monotone" dataKey="hr" stroke="#34d399" strokeWidth={2} name="Heart Rate" dot={{r:3}} />
-            </LineChart>
-        </ResponsiveContainer>
-    </Card>
+    )}
   </div>
 );
 
-const ExplainabilityView = ({ user }: { user: any }) => {
-  // Baseline reference ranges mapping
-  const baselineRanges: Record<string, string> = {
-    'Resting HR': '60 - 100 bpm',
-    'HRV': '20 - 50 ms (varies by age)',
-    'Sleep Minutes': '7 - 9 hours/night (420 - 540 min)',
-    'Steps': '7,000 - 10,000 steps/day',
-    'Sleep Regularity': 'Consistent bedtime ±30 min',
-    'Activity Lvl': '150+ min/week moderate activity',
-    'Stress (Crt)': 'Lower is better',
-    'HRV Decline': 'Monitor for >20% drop',
-    'Sleep Debt': 'Maintain <2h deficit',
-    'BP Spike': 'Normal: <120/80 mmHg',
-    'Social Jetlag': 'Minimize weekend shift'
-  };
-
-  return (
-    <div className="space-y-6 animate-in zoom-in-95 duration-300">
-      <Card title="SHAP Value Analysis (Local Interpretability)">
-        <p className="text-slate-500 text-xs mb-4 max-w-2xl">
-          Visualizes which features pushed the model's prediction towards instability (Red/Negative) or stability (Green/Positive) for today's score.
-        </p>
-        
-        {/* Baseline Reference Ranges */}
-        <div className="mb-4 p-3 bg-slate-950/50 rounded-lg border border-slate-800">
-          <p className="text-[10px] text-slate-500 uppercase font-bold mb-2">Baseline Reference Ranges</p>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-            {user.shapValues.map((entry: any, i: number) => {
-              const range = baselineRanges[entry.feature] || 'N/A';
-              return (
-                <div key={i} className="text-[10px] text-slate-400">
-                  <span className="font-medium text-slate-300">{entry.feature}:</span> {range}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="h-72 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart layout="vertical" data={user.shapValues} margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
-              <XAxis type="number" stroke="#94a3b8" tick={{fontSize: 10}} />
-              <YAxis dataKey="feature" type="category" stroke="#94a3b8" width={100} tick={{fontSize: 11}} />
-              <Tooltip cursor={{fill: '#334155', opacity: 0.2}} contentStyle={{backgroundColor: '#0f172a', border: '1px solid #1e293b'}} />
-              <Bar dataKey="value" name="Impact Score" radius={[0, 4, 4, 0]}>
-                {user.shapValues.map((entry: any, index: number) => (
-                  <Cell key={`cell-${index}`} fill={entry.impact === 'negative' ? '#f43f5e' : '#10b981'} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </Card>
-
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <Card title="Model Reliability & Calibration">
-        <div className="flex flex-col items-center justify-center h-48 text-slate-500 text-sm border-2 border-dashed border-slate-800 rounded-xl bg-slate-950/30">
-          <ShieldCheck size={32} className="mb-3 text-slate-600" />
-          <span className="font-mono">Brier Score: 0.042</span>
-          <span className="text-xs text-slate-600 mt-1">High Reliability Index</span>
-        </div>
-      </Card>
-      <Card title="Volatility Index">
-        <div className="flex flex-col items-center justify-center h-48 text-slate-500 text-sm border-2 border-dashed border-slate-800 rounded-xl bg-slate-950/30">
-          <Activity size={32} className="mb-3 text-slate-600" />
-          <span className="font-mono">Signal Noise Ratio: 8.5dB</span>
-          <span className="text-xs text-slate-600 mt-1">Acceptable Variance</span>
-        </div>
-      </Card>
-    </div>
-  </div>
-  );
-};
-
-const EvidenceView = ({ reviewerMode }: { reviewerMode: boolean }) => (
-  <div className="space-y-6 animate-in fade-in duration-500 max-w-4xl">
-    <Card title="Evidence Bundle" icon={FileText}>
-        <div className="flex flex-col md:flex-row gap-4 items-start justify-between">
-            <div>
-                <h4 className="text-sm font-bold text-slate-200">Clinical Validation Package</h4>
-                <p className="text-xs text-slate-500 mt-1 max-w-md">Contains model architecture diagrams, calibration curves, SHAP analysis, and anonymized validation dataset samples.</p>
-            </div>
-            <button 
-                disabled={reviewerMode} 
-                className={`px-4 py-2 bg-teal-600/10 border border-teal-500/40 rounded-lg text-xs text-teal-300 flex items-center gap-2 hover:bg-teal-600/20 transition-colors ${reviewerMode ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-                <Download size={14} /> Download Evidence Bundle (ZIP)
-            </button>
-        </div>
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <ul className="space-y-3 text-xs text-slate-300">
-                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-emerald-400" /> Model Documentation (v2.1)</li>
-                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-emerald-400" /> Evaluation Plots (Calibration, Volatility)</li>
-                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-emerald-400" /> Sample PDF Reports</li>
-            </ul>
-            <ul className="space-y-3 text-xs text-slate-300">
-                 <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-emerald-400" /> Data Schema & Audit Log</li>
-                 <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-emerald-400" /> HIPAA Compliance Cert</li>
-                 <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-emerald-400" /> System Architecture Diagram</li>
-            </ul>
-        </div>
-    </Card>
-
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <Card title="Model Reliability & Calibration">
-        <div className="flex flex-col items-center justify-center h-48 text-slate-500 text-sm border-2 border-dashed border-slate-800 rounded-xl bg-slate-950/30">
-          <ShieldCheck size={32} className="mb-3 text-slate-600" />
-          <span className="font-mono">Brier Score: 0.042</span>
-          <span className="text-xs text-slate-600 mt-1">High Reliability Index</span>
-        </div>
-      </Card>
-      <Card title="Volatility Index">
-        <div className="flex flex-col items-center justify-center h-48 text-slate-500 text-sm border-2 border-dashed border-slate-800 rounded-xl bg-slate-950/30">
-          <Activity size={32} className="mb-3 text-slate-600" />
-          <span className="font-mono">Signal Noise Ratio: 8.5dB</span>
-          <span className="text-xs text-slate-600 mt-1">Acceptable Variance</span>
-        </div>
-      </Card>
-    </div>
-
-    <Card title="Audit Trail" icon={Calendar}>
-      <div className="space-y-4">
-        <div className="p-4 bg-slate-950/50 rounded-xl border border-slate-800">
-          <div className="flex items-start justify-between mb-2">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-teal-500/10 rounded-lg flex items-center justify-center">
-                <Database size={16} className="text-teal-400" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-slate-200">Data Access Log</p>
-                <p className="text-[10px] text-slate-500">Last updated: 2 hours ago</p>
-              </div>
-            </div>
-            <StatusBadge status="normal" />
-          </div>
-          <p className="text-xs text-slate-400 mt-2">All data access events are logged with timestamps, user IDs, and action types for compliance auditing.</p>
-        </div>
-
-        <div className="p-4 bg-slate-950/50 rounded-xl border border-slate-800">
-          <div className="flex items-start justify-between mb-2">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center">
-                <Lock size={16} className="text-blue-400" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-slate-200">Model Version History</p>
-                <p className="text-[10px] text-slate-500">Current: phase3-v1-wes</p>
-              </div>
-            </div>
-            <StatusBadge status="normal" />
-          </div>
-          <p className="text-xs text-slate-400 mt-2">All model versions are tracked with deployment dates, performance metrics, and rollback capabilities.</p>
-        </div>
-
-        <div className="p-4 bg-slate-950/50 rounded-xl border border-slate-800">
-          <div className="flex items-start justify-between mb-2">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-amber-500/10 rounded-lg flex items-center justify-center">
-                <Eye size={16} className="text-amber-400" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-slate-200">Reviewer Mode Status</p>
-                <p className="text-[10px] text-slate-500">{reviewerMode ? 'Active' : 'Inactive'}</p>
-              </div>
-            </div>
-            <StatusBadge status={reviewerMode ? 'warning' : 'normal'} />
-          </div>
-          <p className="text-xs text-slate-400 mt-2">PII is pseudonymized when reviewer mode is active. All reviewer actions are logged for audit purposes.</p>
-        </div>
-      </div>
-    </Card>
-  </div>
-);
-
-const SettingsView = () => (
-  <div className="space-y-6 max-w-3xl mx-auto animate-in fade-in">
-    <Card title="Connected Devices & Sources" icon={Smartphone}>
-      <div className="space-y-4">
-        {[
-          { name: 'Apple Health', connected: true, icon: Activity, lastSync: '2 mins ago' },
-          { name: 'Oura Cloud', connected: true, icon: CheckCircle, lastSync: '15 mins ago' },
-          { name: 'Samsung Watch', connected: true, icon: Watch, lastSync: '5 mins ago' },
-          { name: 'Whoop API', connected: false, icon: Watch, lastSync: '-' },
-          { name: 'Fitbit', connected: false, icon: Watch, lastSync: '-' },
-          { name: 'Quest Diagnostics', connected: true, icon: Database, lastSync: '1 day ago' },
-        ].map((device, i) => (
-          <div key={i} className="flex items-center justify-between p-4 bg-slate-950/50 rounded-xl border border-slate-800 hover:border-slate-700 transition-colors">
-            <div className="flex items-center gap-4">
-              <div className={`p-3 rounded-full ${device.connected ? 'bg-teal-500/10 text-teal-400' : 'bg-slate-800 text-slate-600'}`}>
-                <device.icon size={20} />
-              </div>
-              <div>
-                  <p className={`font-medium ${device.connected ? 'text-slate-200' : 'text-slate-500'}`}>{device.name}</p>
-                  {device.connected && <p className="text-xs text-slate-500">Synced {device.lastSync}</p>}
-              </div>
-            </div>
-            <button className={`px-4 py-2 rounded-lg text-xs font-medium border transition-colors ${device.connected ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-teal-900/30 bg-teal-900/10 text-teal-400 hover:bg-teal-900/20'}`}>
-               {device.connected ? 'Configure' : 'Connect'}
-            </button>
-          </div>
-        ))}
-      </div>
-    </Card>
-    
-    <Card title="Data Privacy & Compliance">
-      <div className="p-4 bg-slate-900/50 rounded-xl text-sm text-slate-400 border border-slate-800">
-        <div className="flex gap-4 mb-4">
-          <div className="p-2 bg-emerald-500/10 rounded-lg h-fit"><Lock size={20} className="text-emerald-400" /></div>
-          <div>
-              <h4 className="text-slate-200 font-medium mb-1">End-to-End Encryption</h4>
-              <p className="text-xs text-slate-500 leading-relaxed">All health data is encrypted at rest (AES-256) and in transit (TLS 1.3). Your private keys are stored locally.</p>
-          </div>
-        </div>
-        <div className="flex gap-4">
-           <div className="p-2 bg-blue-500/10 rounded-lg h-fit"><Eye size={20} className="text-blue-400" /></div>
-           <div>
-              <h4 className="text-slate-200 font-medium mb-1">Reviewer Mode</h4>
-              <p className="text-xs text-slate-500 leading-relaxed">PII is currently pseudonymized for demonstration purposes. Session ID: SUB-8821-A.</p>
-           </div>
-        </div>
-      </div>
-    </Card>
-  </div>
-);
-
-// -----------------------------------------------------------------------------
-// 4. MAIN CONTROLLER (Navigation & State)
-// -----------------------------------------------------------------------------
-
-// Helper to transform backend data to UI format
-const transformBackendData = (dash: any, exp: any, multimodal: any, userId: string) => {
-  if (!dash || !dash.forecast) return null;
-  
-  const latestRisk = dash.forecast.latest?.risk || 0;
-  const riskScore = Math.round(latestRisk * 100);
-  const isHighRisk = riskScore > 50;
-  
-  // Transform forecast series
-  const trend = (dash.forecast.series || []).map((r: any, i: number) => ({
-    day: i === dash.forecast.series.length - 1 ? 'Today' : `D-${dash.forecast.series.length - 1 - i}`,
-    value: Math.round(r.risk * 100),
-    type: i === dash.forecast.series.length - 1 ? 'current' : 'history'
-  }));
-
-  // Transform SHAP values
-  const shapValues = (exp?.top_contributors || []).map((c: any) => ({
-    feature: c.feature === 'rhr' ? 'Resting HR' : 
-             c.feature === 'hrv_avg' ? 'HRV' :
-             c.feature === 'sleep_minutes' ? 'Sleep Minutes' :
-             c.feature === 'steps' ? 'Steps' : c.feature,
-    value: c.shap_value || 0,
-    impact: (c.shap_value || 0) >= 0 ? 'positive' : 'negative'
-  }));
-
-  // Get metrics from anomalies
-  const anomalies = dash.anomaly?.items || [];
-  const hrvAnomaly = anomalies.find((a: any) => a.signal === 'hrv');
-  const rhrAnomaly = anomalies.find((a: any) => a.signal === 'rhr');
-  const sleepAnomaly = anomalies.find((a: any) => a.signal === 'sleep');
-  const stepsAnomaly = anomalies.find((a: any) => a.signal === 'steps');
-
-  // Transform multimodal conditions
-  const conditions = (multimodal?.conditions || []).map((c: any) => ({
-    name: c.name || 'Unknown',
-    risk: Math.round((c.risk || 0) * 100),
-    status: (c.risk || 0) > 0.6 ? 'high' : (c.risk || 0) > 0.3 ? 'warning' : 'low'
-  }));
-
-  return {
-    id: userId,
-    name: `User ${userId.slice(0, 8)}`,
-    riskScore,
-    riskLevel: isHighRisk ? 'Unstable' : 'Stable',
-    statusColor: isHighRisk ? 'rose' : 'emerald',
-    trend,
-    hrv: { 
-      current: hrvAnomaly?.z ? Math.round(50 + hrvAnomaly.z * 10) : 55, 
-      baseline: 55, 
-      status: hrvAnomaly?.z && hrvAnomaly.z < -2 ? 'Critical Drop' : 'Optimal' 
-    },
-    rhr: { 
-      current: rhrAnomaly?.z ? Math.round(60 + rhrAnomaly.z * 5) : 62, 
-      baseline: 62, 
-      status: rhrAnomaly?.z && rhrAnomaly.z > 2 ? 'Elevated' : 'Optimal' 
-    },
-    sleep: { 
-      current: sleepAnomaly?.z ? Math.round(7 + sleepAnomaly.z * 0.5) : 7.0, 
-      baseline: 7.0, 
-      status: sleepAnomaly?.z && sleepAnomaly.z < -2 ? 'Deficit' : 'Optimal' 
-    },
-    bp: '120/80',
-    bmi: { value: 24.5, status: 'Normal' },
-    steps: { 
-      current: stepsAnomaly?.z ? Math.round(8000 + stepsAnomaly.z * 1000) : 8000, 
-      status: stepsAnomaly?.z && stepsAnomaly.z < -1 ? 'Sedentary' : 'Active' 
-    },
-    stress: { score: Math.round(riskScore * 0.7), status: riskScore > 50 ? 'High' : 'Low' },
-    allergies: ['None Reported'],
-    labs: [
-      { name: 'HbA1c', value: 5.2, unit: '%', status: 'normal' },
-      { name: 'LDL-C', value: 100, unit: 'mg/dL', status: 'normal' },
-    ],
-    conditions,
-    predictions: [
-      { name: 'Prediabetes', prob: riskScore > 60 ? 'Moderate (45%)' : 'Low (<10%)', status: riskScore > 60 ? 'warning' : 'normal' },
-      { name: 'Hypertension', prob: riskScore > 70 ? 'High (75%)' : 'Low (<15%)', status: riskScore > 70 ? 'critical' : 'normal' }
-    ],
-    shapValues,
-    summary: {
-      concern: isHighRisk ? "Cardiovascular Instability Detected" : "Maintenance of Healthy Baseline",
-      change: isHighRisk ? "Spike in Risk Score & HRV Drop" : "Stable Metrics",
-      actions: isHighRisk ? [
-        "Review recent metrics and consult physician",
-        "Increase daily activity levels",
-        "Monitor sleep patterns"
-      ] : [
-        "Maintain current lifestyle",
-        "Continue regular monitoring"
-      ]
-    },
-    intervention: isHighRisk ? "Significant divergence detected. Review metrics and consult healthcare provider." : "Metrics are stable. Continue current routine."
-  };
-};
-
-export default function SubHealthAI() {
-  const [userType, setUserType] = useState<'healthy' | 'risk' | 'real' | null>(null);
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [reviewerMode, setReviewerMode] = useState(false);
-  const [pdfGenerating, setPdfGenerating] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isCopilotOpen, setIsCopilotOpen] = useState(false);
-  
-  // Get real user ID
-  const realUserId = useActiveUser();
-  const version = "phase3-v1-wes";
-  
-  // Fetch real backend data
-  const { dash, exp, loading, error } = useRiskData(
-    userType === 'real' && realUserId ? realUserId : '', 
-    version
-  );
-  
-  // Fetch multimodal risk data (may require auth, so handle errors gracefully)
-  const fetcher = (url: string) => fetch(url).then((res) => {
-    if (!res.ok) return null; // Return null if auth required or error
-    return res.json();
-  }).catch(() => null);
-  const { data: multimodal } = useSWR(
-    userType === 'real' && realUserId ? `/api/multimodal_risk` : null,
-    fetcher
-  );
-
-  // Transform data or use mock
-  const realUserData = userType === 'real' && dash && exp 
-    ? transformBackendData(dash, exp, multimodal, realUserId || '') 
-    : null;
-  
-  const currentUser = userType === 'real' ? realUserData : (userType ? USER_PROFILES[userType] : null);
-
-  // Show loading state when fetching real data
-  if (userType === 'real' && loading) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <RefreshCcw className="animate-spin text-teal-400 mx-auto" size={32} />
-          <p className="text-slate-400">Loading real data from backend...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show error state
-  if (userType === 'real' && error) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-        <div className="text-center space-y-4 max-w-md">
-          <AlertTriangle className="text-rose-400 mx-auto" size={32} />
-          <p className="text-slate-400">Error loading data: {error.message || 'Unknown error'}</p>
-          <button 
-            onClick={() => setUserType(null)}
-            className="px-4 py-2 bg-slate-800 text-slate-200 rounded-lg hover:bg-slate-700"
-          >
-            Go Back
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  const handleGeneratePDF = () => {
-    if (!currentUser) return;
-    
-    setPdfGenerating(true);
-    
-    // Get user ID - use real user ID if available
-    const userId = userType === 'real' && realUserId 
-      ? realUserId 
-      : null;
-    
-    if (!userId) {
-      alert('User ID required to generate report. Please select a user profile.');
-      setPdfGenerating(false);
-      return;
-    }
-    
-    // Build PDF URL with parameters
-    const params = new URLSearchParams({
-      user: userId,
-      version: version,
-    });
-    
-    // Open PDF in new window
-    const pdfWindow = window.open(`/api/report?${params.toString()}`, '_blank', 'noopener,noreferrer');
-    
-    // If popup was blocked, show fallback
-    if (!pdfWindow) {
-      alert('Popup blocked. Please allow popups for this site to download the PDF.');
-    }
-    
-    // Reset loading state after a short delay
+// --- SETTINGS / DATA SOURCES COMPONENTS ---
+const LabUploadWizard = ({ onComplete, onCancel }) => {
+  const [step, setStep] = useState(1);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [file, setFile] = useState(null);
+  const handleFileUpload = (e) => {
+    const selectedFile = e.target?.files?.[0] || { name: 'lab_report_scan.pdf' };
+    setFile(selectedFile);
+    setIsProcessing(true);
     setTimeout(() => {
-      setPdfGenerating(false);
+      setIsProcessing(false);
+      setStep(2);
+    }, 1500);
+  };
+
+  const handleCommit = () => {
+    setIsProcessing(true);
+    setTimeout(() => {
+      setIsProcessing(false);
+      onComplete();
     }, 1000);
   };
 
-  // --- 1. AUTH SCREEN ---
-  if (!currentUser) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-sans selection:bg-teal-500/30 relative overflow-hidden">
-        {/* Ambient Background */}
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
-           <div className="absolute top-[-10%] right-[-10%] w-[600px] h-[600px] bg-teal-500/10 rounded-full blur-[120px]"></div>
-           <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-blue-600/10 rounded-full blur-[120px]"></div>
+  return (
+    <div className="w-full bg-black/20 rounded-xl border border-slate-800 overflow-hidden relative">
+      <div className="h-1 w-full bg-slate-800">
+        <div className="h-full bg-cyan-500 transition-all duration-500" style={{ width: `${(step / 3) * 100}%` }} />
+      </div>
+      <div className="p-6">
+        {step === 1 && (
+          <div className="text-center space-y-6 py-8 animate-in fade-in slide-in-from-bottom-2">
+            <div className="w-16 h-16 rounded-full bg-slate-900 border border-slate-700 flex items-center justify-center mx-auto mb-4 relative group cursor-pointer hover:border-cyan-500/50 transition-colors">
+              <UploadCloud className="w-8 h-8 text-slate-500 group-hover:text-cyan-400 transition-colors" />
+              {isProcessing && <div className="absolute inset-0 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />}
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-sm font-bold text-white uppercase tracking-wide">Drop your lab report here</h3>
+              <p className="text-xs text-slate-500 font-mono">PDF, image, or CSV — up to 10 MB</p>
+            </div>
+            
+            <button 
+              onClick={handleFileUpload}
+              disabled={isProcessing}
+              className="px-6 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold uppercase tracking-wider text-slate-300 transition-all"
+            >
+              {isProcessing ? 'Analyzing...' : 'Browse Files'}
+            </button>
+            <div className="flex justify-center gap-2 mt-4 flex-wrap">
+               {['Metabolic', 'Lipid Panel', 'Inflammation', 'CMP / CBC'].map(tag => (
+                 <span key={tag} className="px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[9px] text-slate-500 font-mono uppercase">{tag}</span>
+               ))}
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
+             <div className="flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                   <File className="w-4 h-4 text-cyan-400" />
+                   <span className="text-xs font-mono text-slate-300">{file?.name}</span>
+                   <span className="text-[10px] bg-emerald-950/30 text-emerald-400 border border-emerald-900/50 px-2 py-0.5 rounded uppercase font-bold">Parsed</span>
+                </div>
+                <button onClick={() => setStep(1)} className="text-[10px] text-slate-500 hover:text-rose-400 underline">Discard</button>
+             </div>
+             <div className="overflow-hidden rounded border border-slate-800/50">
+               <table className="w-full text-left text-[10px] font-mono">
+                 <thead className="bg-slate-900/50 text-slate-500 uppercase">
+                   <tr>
+                     <th className="p-2">Marker</th>
+                     <th className="p-2">Value</th>
+                     <th className="p-2">Status</th>
+                     <th className="p-2">Risk</th>
+                   </tr>
+                 </thead>
+                 <tbody className="divide-y divide-slate-800/30 text-slate-400">
+                    <tr>
+                      <td className="p-2 font-bold text-slate-300">hs-CRP</td>
+                      <td className="p-2">3.2 mg/L</td>
+                      <td className="p-2"><span className="bg-amber-950/30 text-amber-400 px-1.5 py-0.5 rounded">High</span></td>
+                      <td className="p-2 text-rose-400">↑ Instability</td>
+                    </tr>
+                    <tr>
+                      <td className="p-2 font-bold text-slate-300">Glucose</td>
+                      <td className="p-2">104 mg/dL</td>
+                      <td className="p-2"><span className="bg-amber-950/30 text-amber-400 px-1.5 py-0.5 rounded">Elevated</span></td>
+                      <td className="p-2 text-rose-400">↑ Instability</td>
+                    </tr>
+                    <tr>
+                      <td className="p-2 font-bold text-slate-300">HbA1c</td>
+                      <td className="p-2">5.8 %</td>
+                      <td className="p-2"><span className="bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">Borderline</span></td>
+                      <td className="p-2 text-slate-500">Neutral</td>
+                    </tr>
+                 </tbody>
+               </table>
+             </div>
+             <div className="flex justify-end">
+                <button 
+                  onClick={() => setStep(3)}
+                  className="px-4 py-2 bg-cyan-500/10 border border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/20 rounded text-xs font-bold uppercase tracking-wider flex items-center gap-2"
+                >
+                  Confirm Data <ArrowRight size={14} />
+                </button>
+             </div>
+             <p className="text-[9px] text-slate-600 font-mono text-center">Informational only, not diagnostic.</p>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
+             <div className="space-y-2">
+               <h3 className="text-sm font-bold text-white uppercase tracking-wide">Commit to Timeline</h3>
+               <p className="text-xs text-slate-500 font-mono">This will update your Instability Score baseline.</p>
+             </div>
+             <div className="space-y-3 bg-slate-900/30 p-4 rounded border border-slate-800">
+                <div className="flex items-center gap-2">
+                   <CheckSquare className="w-4 h-4 text-cyan-400" />
+                   <span className="text-xs text-slate-300 font-mono">Include in calculation</span>
+                </div>
+                <div className="flex items-center gap-2">
+                   <div className="w-4 h-4 flex items-center justify-center"><span className="block w-1.5 h-1.5 bg-slate-600 rounded-full"></span></div>
+                   <span className="text-xs text-slate-400 font-mono">Date: <span className="text-white">Oct 24, 2023 (Detected)</span></span>
+                </div>
+             </div>
+             <div className="flex gap-3">
+                <button 
+                  onClick={handleCommit}
+                  disabled={isProcessing}
+                  className="flex-1 py-3 bg-white text-black font-bold uppercase tracking-wider text-xs rounded hover:bg-cyan-50 transition-colors"
+                >
+                  {isProcessing ? 'Recalculating...' : 'Save & Recalculate'}
+                </button>
+                <button 
+                  onClick={onCancel}
+                  className="px-4 py-3 bg-transparent border border-slate-700 text-slate-400 font-bold uppercase tracking-wider text-xs rounded hover:bg-slate-900 hover:text-white transition-colors"
+                >
+                  Discard
+                </button>
+             </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const DataSourcesView = ({ userMode }) => {
+  const [viewState, setViewState] = useState('demo');
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+
+  useEffect(() => {
+    setViewState('demo');
+  }, [userMode]);
+
+  const handleUploadComplete = () => {
+    setUploadSuccess(true);
+    if (showUploadModal) {
+       setShowUploadModal(false);
+       setViewState('live-populated');
+    } else {
+       setViewState('live-populated'); 
+    }
+    setTimeout(() => setUploadSuccess(false), 4000);
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
+      <div className="flex items-center justify-center gap-4 mb-8">
+         <span className="text-[9px] font-mono text-slate-600 uppercase tracking-widest">[ Dev Controls ]</span>
+         <div className="flex bg-slate-900/80 p-1 rounded-lg border border-slate-800">
+           {['demo', 'live-empty', 'live-populated'].map(s => (
+             <button
+               key={s}
+               onClick={() => setViewState(s)}
+               className={`px-3 py-1 text-[9px] font-bold uppercase tracking-wider rounded transition-all ${viewState === s ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
+             >
+               {s.replace('-', ' ')}
+             </button>
+           ))}
+         </div>
+      </div>
+      {uploadSuccess && (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50 bg-emerald-950/90 border border-emerald-500/30 text-emerald-400 px-6 py-3 rounded-full text-xs font-mono font-bold flex items-center gap-2 shadow-2xl animate-in slide-in-from-top-4 fade-in">
+           <CheckCircle size={14} /> Labs saved. View full history in Insights ? Labs.
+        </div>
+      )}
+      {showUploadModal && (
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="w-full max-w-lg relative">
+             <button onClick={() => setShowUploadModal(false)} className="absolute -top-12 right-0 text-slate-400 hover:text-white"><X /></button>
+             <LabUploadWizard onComplete={handleUploadComplete} onCancel={() => setShowUploadModal(false)} />
+          </div>
+        </div>
+      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <BentoCard colSpan="lg:col-span-3" title="Wearables & Devices" icon={Watch}>
+           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+              <div className="space-y-2 max-w-md">
+                 <h4 className="text-sm font-bold text-white">Passive Monitoring</h4>
+                 <p className="text-xs text-slate-400 font-mono">Connect your wearables to enable high-fidelity multimodal monitoring. We support read-only sync for sleep, HRV, and activity data.</p>
+              </div>
+              <div className="flex flex-wrap gap-4 justify-center md:justify-end">
+                  {['Oura', 'Whoop', 'Apple Health', 'Garmin', 'Samsung'].map(brand => (
+                    <div key={brand} className="group relative flex flex-col items-center gap-2 p-3 bg-slate-900/50 border border-slate-800 rounded-xl hover:border-cyan-500/30 transition-all cursor-pointer w-24">
+                        <div className="w-10 h-10 rounded-full bg-black border border-slate-700 flex items-center justify-center group-hover:shadow-[0_0_15px_rgba(6,182,212,0.2)] transition-shadow">
+                           {brand === 'Oura' || brand === 'Apple Health' ? <CheckCircle size={16} className="text-emerald-500" /> : <Smartphone size={16} className="text-slate-500 group-hover:text-cyan-400" />}
+                        </div>
+                        <span className="text-[9px] font-bold text-slate-500 uppercase">{brand}</span>
+                    </div>
+                  ))}
+              </div>
+           </div>
+        </BentoCard>
+
+        {viewState === 'demo' && (
+          <BentoCard colSpan="lg:col-span-2" title="Lab Reports & Biomarkers" icon={Microscope}>
+             <div className="space-y-4">
+                <div className="p-3 bg-slate-900/50 border border-slate-800 rounded flex items-start gap-3">
+                   <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                   <div>
+                      <div className="text-xs font-bold text-slate-200">Demo Mode � Upload disabled</div>
+                      <div className="text-[10px] text-slate-500 font-mono mt-1">Showing sample data for demonstration purposes.</div>
+                   </div>
+                </div>
+                <div className="opacity-60 pointer-events-none">
+                   <table className="w-full text-left text-[10px] font-mono mb-4">
+                     <thead className="bg-slate-900/30 text-slate-500 uppercase">
+                       <tr><th className="p-2">Marker</th><th className="p-2">Value</th><th className="p-2">Status</th></tr>
+                     </thead>
+                     <tbody className="divide-y divide-slate-800/30 text-slate-400">
+                        <tr><td className="p-2">hs-CRP</td><td className="p-2">0.5</td><td className="p-2 text-emerald-400">Optimal</td></tr>
+                        <tr><td className="p-2">Glucose</td><td className="p-2">85</td><td className="p-2 text-emerald-400">Optimal</td></tr>
+                     </tbody>
+                   </table>
+                </div>
+                <button disabled className="w-full py-3 bg-slate-800 border border-slate-700 text-slate-500 text-xs font-bold uppercase tracking-wider rounded cursor-not-allowed flex items-center justify-center gap-2">
+                   <UploadCloud size={14} /> Upload Labs (Demo Mode)
+                </button>
+                <p className="text-[9px] text-slate-600 font-mono text-center pt-2 border-t border-slate-800/50">
+                   This is sample data. In real mode you may upload lab reports to refine Instability calculations.
+                </p>
+             </div>
+          </BentoCard>
+        )}
+
+        {viewState === 'live-empty' && (
+           <BentoCard colSpan="lg:col-span-2" title="Lab Reports & Biomarkers" icon={Microscope}>
+             <LabUploadWizard onComplete={handleUploadComplete} onCancel={() => {}} />
+           </BentoCard>
+        )}
+
+        {viewState === 'live-populated' && (
+           <BentoCard colSpan="lg:col-span-2" title="Lab Reports & Biomarkers" icon={Microscope}>
+              <div className="flex justify-between items-start mb-6">
+                 <div>
+                    <h4 className="text-sm font-bold text-white mb-1">Latest Panel Integration</h4>
+                    <p className="text-xs text-slate-400 font-mono">Latest biomarker data integrated into Instability & risk projections.</p>
+                 </div>
+                 <div className="px-2 py-1 bg-emerald-950/30 border border-emerald-900/50 rounded text-[9px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                    <CheckCircle size={10} /> Integrated
+                 </div>
+              </div>
+              <div className="space-y-4">
+                 <div className="bg-slate-900/30 border border-slate-800 rounded-lg p-4">
+                    <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-3">Last Lab Event</div>
+                    <div className="flex items-center justify-between text-xs font-mono mb-2">
+                       <span className="text-white">Oct 24, 2023</span>
+                       <span className="text-slate-400">Metabolic Panel + CRP</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs font-mono">
+                       <span className="text-white">Sep 12, 2023</span>
+                       <span className="text-slate-400">Lipid Panel</span>
+                    </div>
+                 </div>
+                 <div className="flex gap-3">
+                    <button 
+                      onClick={() => setShowUploadModal(true)}
+                      className="flex-1 py-3 bg-white text-black font-bold uppercase tracking-wider text-xs rounded hover:bg-cyan-50 transition-colors flex items-center justify-center gap-2"
+                    >
+                       <Plus size={14} /> Upload New Labs
+                    </button>
+                    <button className="px-4 py-3 bg-transparent border border-slate-700 text-slate-300 font-bold uppercase tracking-wider text-xs rounded hover:bg-slate-800 hover:text-white transition-colors">
+                       Enter Manually
+                    </button>
+                 </div>
+              </div>
+           </BentoCard>
+        )}
+
+        <BentoCard title="Manual Entries & CSV" icon={FileText}>
+           <div className="h-full flex flex-col items-center justify-center text-center space-y-4 py-8">
+              <div className="w-12 h-12 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center opacity-50">
+                 <FlaskConical className="w-6 h-6 text-slate-600" />
+              </div>
+              <div className="space-y-2">
+                 <h4 className="text-xs font-bold text-slate-500 uppercase">Coming Soon</h4>
+                 <p className="text-[10px] text-slate-600 font-mono px-4 leading-relaxed">
+                    Structured manual biomarker input and CSV batch import. This will let researchers backfill historical panels.
+                 </p>
+              </div>
+              <button disabled className="px-4 py-2 bg-slate-900 border border-slate-800 text-slate-600 text-[10px] font-bold uppercase tracking-wider rounded cursor-not-allowed">
+                 Open Manual Entry
+              </button>
+           </div>
+        </BentoCard>
+      </div>
+    </div>
+  );
+};
+
+// --- VIEWS ---
+const DashboardView = ({ profile, data, onToggleCopilot }) => {
+  const isRisk = profile === 'risk';
+  const chartColor = isRisk ? '#fbbf24' : '#22d3ee';
+  const chartData = isRisk ? [45, 50, 65, 78, 82, 80, 85, 90, 88, 92, 85, 80] : [12, 15, 10, 14, 12, 18, 15, 12, 10, 14, 12, 15];
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 gap-6 max-w-7xl mx-auto animate-in fade-in duration-500">
+      <BentoCard 
+        colSpan="md:col-span-2 lg:col-span-3" 
+        rowSpan="row-span-2" 
+        title="Instability Index" 
+        icon={Activity}
+        delay={100}
+        glowing={isRisk}
+      >
+        <div className="flex justify-between items-start w-full mb-4 relative z-20">
+          <div className="flex items-center gap-2">
+             <div className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-widest uppercase border border-opacity-20 ${isRisk ? 'text-amber-400 border-amber-400 bg-amber-400/10' : 'text-cyan-400 border-cyan-400 bg-cyan-400/10'}`}>
+               {data.status}
+             </div>
+          </div>
+          <div className="text-right">
+             <StatValue 
+               value={data.instabilityScore} 
+               unit="/100" 
+               trend={isRisk ? 'up' : 'down'} 
+               trendVal={isRisk ? '+42% Drift' : '-2% Stable'}
+               isRisk={isRisk} 
+             />
+             <div className="text-[9px] text-slate-600 font-mono mt-1">vs 28-day baseline</div>
+          </div>
+        </div>
+        <div className="absolute bottom-0 left-0 right-0 h-48 z-10 opacity-60">
+           <MiniAreaChart data={chartData} color={chartColor} height={100} />
+        </div>
+      </BentoCard>
+
+      <BentoCard colSpan="md:col-span-2 lg:col-span-3" title="Daily Briefing" icon={Brain} delay={150}>
+        <div className="flex flex-col justify-between h-full">
+          <p className="text-sm text-slate-300 leading-relaxed font-mono border-l-2 border-slate-700 pl-4 py-1">
+            {data.narrative}
+          </p>
+          <div className="mt-4 flex gap-2">
+            <span className="text-[10px] font-mono text-slate-500 bg-slate-900 px-2 py-1 rounded border border-slate-800">Model Confidence: 94%</span>
+            <span className="text-[10px] font-mono text-slate-500 bg-slate-900 px-2 py-1 rounded border border-slate-800">Calibration: Optimal</span>
+          </div>
+        </div>
+      </BentoCard>
+
+      <BentoCard colSpan="md:col-span-2 lg:col-span-2" title="Biometric Telemetry" icon={Zap} delay={200}>
+        <div className="grid grid-cols-2 gap-4 h-full">
+          <div className="bg-slate-900/50 p-3 rounded border border-slate-800 flex flex-col justify-between">
+            <span className="text-[10px] text-slate-500 uppercase font-mono">HRV (rmssd)</span>
+            <span className={`text-xl font-['Unbounded'] ${isRisk ? 'text-amber-400' : 'text-white'}`}>{data.vitals.hrv} <span className="text-[10px] text-slate-600">ms</span></span>
+          </div>
+          <div className="bg-slate-900/50 p-3 rounded border border-slate-800 flex flex-col justify-between">
+            <span className="text-[10px] text-slate-500 uppercase font-mono">RHR</span>
+            <span className={`text-xl font-['Unbounded'] ${isRisk ? 'text-amber-400' : 'text-white'}`}>{data.vitals.rhr} <span className="text-[10px] text-slate-600">bpm</span></span>
+          </div>
+          <div className="bg-slate-900/50 p-3 rounded border border-slate-800 flex flex-col justify-between">
+            <span className="text-[10px] text-slate-500 uppercase font-mono">Resp Rate</span>
+            <span className="text-xl font-['Unbounded'] text-white">{data.vitals.resp} <span className="text-[10px] text-slate-600">rpm</span></span>
+          </div>
+          <div className="bg-slate-900/50 p-3 rounded border border-slate-800 flex flex-col justify-between">
+            <span className="text-[10px] text-slate-500 uppercase font-mono">Skin Temp</span>
+            <span className="text-xl font-['Unbounded'] text-white">{data.vitals.temp}° <span className="text-[10px] text-slate-600">F</span></span>
+          </div>
+        </div>
+      </BentoCard>
+
+      <BentoCard colSpan="md:col-span-2 lg:col-span-2" title="Top Contributors" icon={GitCommit} delay={250}>
+        <div className="space-y-3 mt-2">
+          {data.drivers.map((d, i) => (
+             <div key={i} className="flex justify-between items-center text-xs">
+               <span className="text-slate-400 font-mono">{d.name}</span>
+               <div className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${d.impact > 0 ? 'bg-rose-950/30 text-rose-400 border border-rose-900' : 'bg-emerald-950/30 text-emerald-400 border border-emerald-900'}`}>
+                 {d.impact > 0 ? '↑ Instability' : '↓ Instability'}
+               </div>
+             </div>
+          ))}
+        </div>
+        <div className="mt-auto pt-4 text-[9px] text-slate-600 font-mono text-center">
+          Based on SHAP feature attribution
+        </div>
+      </BentoCard>
+
+      <BentoCard colSpan="md:col-span-4 lg:col-span-2" title="Subclinical Drift" icon={TrendingUp} delay={300} className={isRisk ? "border-amber-500/20 bg-amber-900/5" : ""}>
+        <div className="space-y-4 h-full flex flex-col justify-center">
+          <div className="flex justify-between items-center border-b border-white/5 pb-2">
+             <span className="text-xs text-slate-400 font-mono">Metabolic</span>
+             <span className={`text-xs font-bold font-mono ${data.drift.metabolic === 'Low' ? 'text-emerald-400' : 'text-amber-400'}`}>{data.drift.metabolic}</span>
+          </div>
+          <div className="flex justify-between items-center border-b border-white/5 pb-2">
+             <span className="text-xs text-slate-400 font-mono">Cardiovascular</span>
+             <span className={`text-xs font-bold font-mono ${data.drift.cardio === 'Low' ? 'text-emerald-400' : 'text-amber-400'}`}>{data.drift.cardio}</span>
+          </div>
+          <div className="flex justify-between items-center">
+             <span className="text-xs text-slate-400 font-mono">Inflammatory</span>
+             <span className={`text-xs font-bold font-mono ${data.drift.inflammation === 'Normal' ? 'text-emerald-400' : 'text-rose-400'}`}>{data.drift.inflammation}</span>
+          </div>
+          <div className="mt-auto pt-2">
+            <p className="text-[9px] text-slate-600 leading-tight">
+              * Non-diagnostic projections. For informational and research use only. Not FDA cleared.
+            </p>
+          </div>
+        </div>
+      </BentoCard>
+
+      <BentoCard title="Copilot Shortcuts" icon={MessageSquare} delay={320} colSpan="col-span-full md:col-span-2 lg:col-span-2">
+        <div className="flex flex-wrap gap-2 text-[10px] font-mono">
+          <button onClick={onToggleCopilot} className="px-3 py-1 rounded bg-slate-900 border border-slate-800 hover:border-cyan-500/40 hover:text-cyan-300 transition-colors">
+            Why did my risk change?
+          </button>
+          <button onClick={onToggleCopilot} className="px-3 py-1 rounded bg-slate-900 border border-slate-800 hover:border-cyan-500/40 hover:text-cyan-300 transition-colors">
+            Explain today&apos;s drivers
+          </button>
+          <button onClick={onToggleCopilot} className="px-3 py-1 rounded bg-slate-900 border border-slate-800 hover:border-cyan-500/40 hover:text-cyan-300 transition-colors">
+            How did sleep impact Instability?
+          </button>
+        </div>
+        <p className="mt-3 text-[9px] text-slate-600">
+          All answers are generated on synthetic demo data and are non-diagnostic.
+        </p>
+      </BentoCard>
+    </div>
+  );
+};
+
+const MultimodalView = ({ profile, data }) => {
+  const [tab, setTab] = useState('vitals');
+  const TABS = ['vitals', 'sleep', 'labs', 'symptoms', 'devices'];
+
+  return (
+    <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex gap-2 overflow-x-auto pb-2 border-b border-slate-800">
+        {TABS.map(t => (
+          <button 
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-4 py-2 text-[10px] font-bold uppercase tracking-widest rounded-t-lg transition-all ${tab === t ? 'bg-slate-800 text-cyan-400 border-b-2 border-cyan-400' : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {tab === 'vitals' && (
+          <>
+            <BentoCard colSpan="lg:col-span-2" title="HRV Trend (7-Day)" icon={Activity}>
+              <div className="h-64 mt-4 relative">
+                 <div className="absolute top-0 right-0 flex gap-4 text-[10px] font-mono">
+                   <span className="text-cyan-400">● HRV</span>
+                   <span className="text-slate-600">● Baseline</span>
+                 </div>
+                 <MiniAreaChart data={profile === 'healthy' ? [110, 112, 115, 118, 114, 115, 116] : [45, 42, 38, 35, 30, 25, 22]} color={profile === 'healthy' ? '#22d3ee' : '#f59e0b'} height={100} />
+              </div>
+            </BentoCard>
+            <BentoCard title="Current Status" icon={Zap}>
+              <div className="space-y-4 mt-2">
+                <div>
+                   <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Resting Heart Rate</div>
+                   <div className="text-2xl font-['Unbounded'] text-white">{data.vitals.rhr} <span className="text-sm text-slate-600">bpm</span></div>
+                   <div className={`text-xs font-mono mt-1 ${profile === 'risk' ? 'text-amber-400' : 'text-emerald-400'}`}>{profile === 'risk' ? '▲ Elevated' : '✔ Optimal'}</div>
+                </div>
+                <hr className="border-slate-800" />
+                <div>
+                   <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Body Temperature</div>
+                   <div className="text-2xl font-['Unbounded'] text-white">{data.vitals.temp} <span className="text-sm text-slate-600">°F</span></div>
+                   <div className={`text-xs font-mono mt-1 ${profile === 'risk' ? 'text-amber-400' : 'text-emerald-400'}`}>{profile === 'risk' ? '▲ Mild Elevation' : '✔ Stable'}</div>
+                </div>
+              </div>
+            </BentoCard>
+          </>
+        )}
+
+        {tab === 'sleep' && (
+           <>
+             <BentoCard colSpan="lg:col-span-2" title="Hypnogram Architecture" icon={Layers}>
+               <div className="h-64 flex items-end gap-4 mt-4 px-4">
+                 <div className="flex-1 flex flex-col gap-1 h-full justify-end">
+                   <div className="w-full bg-indigo-500/80 rounded-sm relative group" style={{ height: `${data.sleep.deep * 10}%` }}>
+                      <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-white opacity-0 group-hover:opacity-100 transition-opacity">Deep</span>
+                   </div>
+                   <div className="w-full bg-cyan-500/60 rounded-sm" style={{ height: `${data.sleep.rem * 10}%` }}></div>
+                   <div className="w-full bg-slate-600/40 rounded-sm" style={{ height: `${data.sleep.light * 10}%` }}></div>
+                   <div className="w-full bg-rose-500/40 rounded-sm" style={{ height: `${data.sleep.awake * 10}%` }}></div>
+                   <div className="text-center text-[10px] font-mono text-slate-500 mt-2">Last Night</div>
+                 </div>
+                 <div className="flex-1 flex flex-col gap-1 h-full justify-end opacity-50 grayscale">
+                    <div className="w-full bg-indigo-500/80 rounded-sm" style={{ height: '20%' }}></div>
+                    <div className="w-full bg-cyan-500/60 rounded-sm" style={{ height: '25%' }}></div>
+                    <div className="w-full bg-slate-600/40 rounded-sm" style={{ height: '40%' }}></div>
+                    <div className="w-full bg-rose-500/40 rounded-sm" style={{ height: '5%' }}></div>
+                    <div className="text-center text-[10px] font-mono text-slate-500 mt-2">Baseline</div>
+                 </div>
+               </div>
+               <div className="flex justify-center gap-4 mt-6">
+                  <div className="flex items-center gap-2 text-[10px] text-slate-400 uppercase font-mono"><div className="w-2 h-2 bg-indigo-500 rounded-full"></div> Deep</div>
+                  <div className="flex items-center gap-2 text-[10px] text-slate-400 uppercase font-mono"><div className="w-2 h-2 bg-cyan-500 rounded-full"></div> REM</div>
+                  <div className="flex items-center gap-2 text-[10px] text-slate-400 uppercase font-mono"><div className="w-2 h-2 bg-slate-600 rounded-full"></div> Light</div>
+                  <div className="flex items-center gap-2 text-[10px] text-slate-400 uppercase font-mono"><div className="w-2 h-2 bg-rose-500 rounded-full"></div> Awake</div>
+               </div>
+             </BentoCard>
+             <BentoCard title="Analysis" icon={Brain}>
+               <p className="text-sm text-slate-300 leading-relaxed font-mono">
+                 {profile === 'healthy' 
+                   ? "Deep sleep is within ±10% of your 14-day trailing baseline. Recovery processes are optimal."
+                   : "Deep sleep reduced ~60% vs your normal baseline. This acute deprivation is a primary driver of today's Instability Score."
+                 }
+               </p>
+             </BentoCard>
+           </>
+        )}
+
+        {tab === 'labs' && (
+          <BentoCard colSpan="lg:col-span-3" title="Biomarker Panel (Most Recent)" icon={Microscope}>
+             <div className="overflow-x-auto">
+               <table className="w-full text-left text-xs font-mono">
+                 <thead>
+                   <tr className="border-b border-slate-800 text-slate-500 uppercase tracking-wider">
+                     <th className="py-3 px-4">Marker</th>
+                     <th className="py-3 px-4">Value</th>
+                     <th className="py-3 px-4">Ref Range</th>
+                     <th className="py-3 px-4">Status</th>
+                     <th className="py-3 px-4">Risk Contribution</th>
+                   </tr>
+                 </thead>
+                 <tbody className="divide-y divide-slate-800/50">
+                   {data.labs.map((lab, i) => (
+                     <tr key={i} className="hover:bg-slate-800/20 transition-colors">
+                       <td className="py-3 px-4 font-bold text-slate-300">{lab.name}</td>
+                       <td className="py-3 px-4 text-white">{lab.value} <span className="text-slate-600 text-[10px]">{lab.unit}</span></td>
+                       <td className="py-3 px-4 text-slate-500">Variable</td>
+                       <td className="py-3 px-4">
+                         <span className={`px-2 py-0.5 rounded-full text-[9px] uppercase font-bold ${lab.status === 'Optimal' ? 'bg-emerald-950 text-emerald-400' : lab.status === 'High' || lab.status === 'Elevated' ? 'bg-amber-950 text-amber-400' : 'bg-slate-800 text-slate-400'}`}>
+                           {lab.status}
+                         </span>
+                       </td>
+                       <td className="py-3 px-4">
+                         <div className={`w-24 h-1 rounded-full ${lab.status === 'Optimal' ? 'bg-slate-800' : 'bg-amber-900'}`}>
+                           <div className={`h-full rounded-full ${lab.status === 'Optimal' ? 'bg-emerald-500 w-[10%]' : 'bg-amber-500 w-[70%]'}`}></div>
+                         </div>
+                       </td>
+                     </tr>
+                   ))}
+                 </tbody>
+               </table>
+             </div>
+             <div className="mt-4 p-3 bg-slate-900/50 rounded border border-slate-800 text-[10px] text-slate-500 font-mono">
+               DISCLAIMER: Lab data shown for demonstration purposes. Not a medical diagnosis. Consult a physician for interpretation.
+             </div>
+          </BentoCard>
+        )}
+
+        {tab === 'symptoms' && (
+          <BentoCard colSpan="lg:col-span-3" title="Self-Reported Signals" icon={Stethoscope}>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 rounded bg-slate-900/30 border border-slate-800">
+                  <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">Today's Tags</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {profile === 'healthy' 
+                      ? <span className="px-3 py-1 rounded-full bg-slate-800 text-slate-400 text-xs">No Symptoms Reported</span>
+                      : <>
+                          <span className="px-3 py-1 rounded-full bg-amber-900/20 text-amber-400 border border-amber-900/50 text-xs">Daytime Fatigue</span>
+                          <span className="px-3 py-1 rounded-full bg-amber-900/20 text-amber-400 border border-amber-900/50 text-xs">Brain Fog</span>
+                          <span className="px-3 py-1 rounded-full bg-slate-800 text-slate-400 border border-slate-700 text-xs">Mild Joint Pain</span>
+                        </>
+                    }
+                  </div>
+                </div>
+                <div className="p-4 rounded bg-slate-900/30 border border-slate-800 flex items-center justify-center text-slate-600 text-xs font-mono uppercase">
+                   Timeline View Coming Soon
+                </div>
+             </div>
+          </BentoCard>
+        )}
+        
+        {tab === 'devices' && (
+          <div className="col-span-full grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800 flex items-center gap-4 opacity-100">
+               <div className="w-10 h-10 rounded-full bg-black flex items-center justify-center border border-slate-700"><Watch size={18} className="text-white" /></div>
+               <div>
+                 <div className="text-sm font-bold text-white">Oura Ring</div>
+                 <div className="text-[10px] text-emerald-400 uppercase tracking-wider flex items-center gap-1"><CheckCircle size={10} /> Connected (Demo)</div>
+               </div>
+            </div>
+            <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800 flex items-center gap-4 opacity-60">
+               <div className="w-10 h-10 rounded-full bg-black flex items-center justify-center border border-slate-700"><Activity size={18} className="text-white" /></div>
+               <div>
+                 <div className="text-sm font-bold text-white">Apple Health</div>
+                 <div className="text-[10px] text-slate-500 uppercase tracking-wider">Sync Paused</div>
+               </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const ExplainabilityView = ({ profile, data }) => {
+  const [selectedDriver, setSelectedDriver] = useState(data.drivers[0]);
+
+  useEffect(() => {
+    setSelectedDriver(data.drivers[0]);
+  }, [data]);
+
+  return (
+    <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in duration-500">
+      <BentoCard colSpan="lg:col-span-2" title="Local Feature Attribution (SHAP)" icon={GitCommit}>
+         <div className="mb-6">
+           <p className="text-sm text-slate-400 leading-relaxed max-w-2xl">
+             This chart visualizes exactly which features pushed your Instability Score up or down today. 
+             <span className="text-emerald-400"> Green</span> factors provided stability, while <span className="text-rose-400">Red</span> factors introduced volatility.
+           </p>
+         </div>
+         <SHAPBarChart drivers={data.drivers} onSelect={setSelectedDriver} />
+      </BentoCard>
+
+      <div className="space-y-6">
+        {selectedDriver ? (
+            <BentoCard title="Driver Detail" icon={Search}>
+              <div className="space-y-3 text-xs font-mono text-slate-300">
+                <div className="text-slate-500 uppercase tracking-widest text-[10px]">
+                  Selected Driver
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-sm font-bold">{selectedDriver.name}</span>
+                  <span className="text-slate-400">{selectedDriver.value}</span>
+                </div>
+                <p className="text-slate-400">
+                  Compared to your baseline, <span className="text-slate-200">{selectedDriver.name}</span> is
+                  {selectedDriver.impact > 0 ? ' increasing' : ' reducing'} today&apos;s Instability Score by
+                  <span className="text-slate-200"> {Math.abs(selectedDriver.impact)}</span> points.
+                </p>
+                <p className="text-[10px] text-slate-500 border-t border-slate-800 pt-2">
+                  Non-diagnostic. This attribution is for explanatory and research purposes only.
+                </p>
+              </div>
+            </BentoCard>
+        ) : (
+            <BentoCard title="Driver Detail" icon={Search}>
+              <div className="h-full flex flex-col justify-center items-center text-center p-4">
+                <div className="w-12 h-12 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center mb-4">
+                  <ScanLine className="text-cyan-400" />
+                </div>
+                <p className="text-slate-500 text-xs mb-2 uppercase tracking-widest">Select a driver on the left</p>
+              </div>
+            </BentoCard>
+        )}
+
+        <BentoCard title="Model Hygiene" icon={Shield}>
+           <div className="space-y-4">
+             <div className="flex justify-between items-center text-xs border-b border-slate-800 pb-2">
+               <span className="text-slate-400">Calibration (Brier Score)</span>
+               <span className="font-mono text-emerald-400">0.13 (Optimal)</span>
+             </div>
+             <div className="flex justify-between items-center text-xs border-b border-slate-800 pb-2">
+               <span className="text-slate-400">Data Completeness</span>
+               <span className="font-mono text-white">94%</span>
+             </div>
+             <div className="flex justify-between items-center text-xs">
+               <span className="text-slate-400">Volatility Index</span>
+               <span className={`font-mono ${profile === 'risk' ? 'text-amber-400' : 'text-slate-300'}`}>{profile === 'risk' ? 'Moderate' : 'Low'}</span>
+             </div>
+           </div>
+        </BentoCard>
+      </div>
+    </div>
+  );
+};
+
+const EvidenceView = () => (
+  <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in duration-500">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <BentoCard title="System Configuration" icon={Settings}>
+         <div className="space-y-4 font-mono text-xs">
+           <div className="flex justify-between text-slate-400">
+             <span>Engine Version</span>
+             <span className="text-white">phase3-v1-wes</span>
+           </div>
+           <div className="flex justify-between text-slate-400">
+             <span>Last Updated</span>
+             <span className="text-white">2023-10-24 04:00 UTC</span>
+           </div>
+           <div className="flex justify-between text-slate-400">
+             <span>Environment</span>
+             <span className="text-cyan-400">DEMO / SANDBOX</span>
+           </div>
+         </div>
+      </BentoCard>
+      
+      <BentoCard title="Performance Metrics (Internal)" icon={BarChart2}>
+         <div className="space-y-4 font-mono text-xs">
+           <div className="flex justify-between text-slate-400">
+             <span>AUROC (Validation)</span>
+             <span className="text-white">0.88</span>
+           </div>
+           <div className="flex justify-between text-slate-400">
+             <span>PR-AUC</span>
+             <span className="text-white">0.72</span>
+           </div>
+           <div className="mt-4 p-2 bg-amber-900/10 border border-amber-900/50 rounded text-amber-500 text-[9px] leading-tight">
+             Internal evaluation metrics only. Not clinically validated for diagnosis.
+           </div>
+         </div>
+      </BentoCard>
+    </div>
+
+    <BentoCard colSpan="col-span-full" title="Audit Trail (Immutable)" icon={Database}>
+       <div className="overflow-hidden rounded-lg border border-slate-800">
+         <table className="w-full text-left text-[10px] font-mono">
+           <thead className="bg-slate-900/80 text-slate-500 uppercase">
+             <tr>
+               <th className="p-3">Timestamp</th>
+               <th className="p-3">Actor</th>
+               <th className="p-3">Event</th>
+               <th className="p-3">Details</th>
+             </tr>
+           </thead>
+           <tbody className="divide-y divide-slate-800 text-slate-400">
+             <tr>
+               <td className="p-3 text-slate-500">2023-10-25 08:00:01</td>
+               <td className="p-3 text-cyan-500">System</td>
+               <td className="p-3">INGEST_WEARABLE</td>
+               <td className="p-3">Received payload from Oura API (34kb)</td>
+             </tr>
+             <tr>
+               <td className="p-3 text-slate-500">2023-10-25 08:00:05</td>
+               <td className="p-3 text-emerald-500">InferenceEngine</td>
+               <td className="p-3">RISK_RECALC</td>
+               <td className="p-3">Instability Score updated. Latency: 120ms</td>
+             </tr>
+             <tr>
+               <td className="p-3 text-slate-500">2023-10-25 09:14:22</td>
+               <td className="p-3 text-white">User_804</td>
+               <td className="p-3">VIEW_EXPLAINABILITY</td>
+               <td className="p-3">Accessed SHAP detail panel</td>
+             </tr>
+           </tbody>
+         </table>
+       </div>
+    </BentoCard>
+  </div>
+);
+
+const CopilotDrawer = ({ isOpen, onClose, profile, data }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-y-0 right-0 w-96 bg-[#02040a] border-l border-slate-800 shadow-2xl z-[100] flex flex-col animate-in slide-in-from-right duration-300">
+      <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50 backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded bg-cyan-900/20 border border-cyan-500/30 flex items-center justify-center">
+            <MessageSquare size={16} className="text-cyan-400" />
+          </div>
+          <span className="font-rajdhani font-bold text-lg text-white">SubHealth Copilot</span>
+        </div>
+        <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors"><X size={20} /></button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex gap-4">
+           <div className="w-8 h-8 rounded-full bg-slate-800 flex-shrink-0 flex items-center justify-center text-xs font-bold text-slate-400">U</div>
+           <div className="bg-slate-800/50 rounded-2xl rounded-tl-none p-4 border border-slate-700 text-sm text-slate-300">
+             Why did my risk score change today?
+           </div>
         </div>
 
-        <div className="w-full max-w-md space-y-8 relative z-10">
-          <div className="text-center">
-            <div className="flex justify-center mb-6">
-              <div className="w-20 h-20 bg-gradient-to-tr from-teal-500 to-blue-600 rounded-3xl flex items-center justify-center shadow-2xl shadow-teal-900/50">
-                <Activity size={40} className="text-white" />
-              </div>
-            </div>
-            <h1 className="text-4xl font-bold text-slate-100 tracking-tight">SubHealth<span className="text-teal-400">AI</span></h1>
-            <p className="text-slate-400 mt-3 text-sm font-medium">
-              Multimodal Health Risk Intelligence Platform<br/>
-              <span className="text-slate-600 text-xs font-normal">Research Prototype v0.9.4-beta</span>
-            </p>
-          </div>
+        <div className="flex gap-4 flex-row-reverse">
+           <div className="w-8 h-8 rounded-full bg-cyan-900/30 border border-cyan-500/30 flex-shrink-0 flex items-center justify-center"><Brain size={14} className="text-cyan-400" /></div>
+           <div className="bg-cyan-950/10 rounded-2xl rounded-tr-none p-4 border border-cyan-900/30 text-sm text-slate-300">
+             <p className="mb-2">Your Instability Score moved to <span className="font-bold text-white">{data.instabilityScore}</span> ({data.status}) primarily due to these factors:</p>
+             <ul className="list-disc pl-4 space-y-1 mb-3 text-slate-400 text-xs">
+               {data.drivers.slice(0,2).map((d,i) => (
+                 <li key={i}>{d.name} ({d.value})</li>
+               ))}
+             </ul>
+             <p className="text-xs text-slate-500 italic border-t border-cyan-900/30 pt-2 mt-2">
+               Note: These patterns indicate increased physiological instability but do not constitute a medical diagnosis.
+             </p>
+           </div>
+        </div>
+      </div>
 
-          <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 p-8 rounded-3xl shadow-2xl space-y-4">
-            <div className="space-y-3">
-              <label className="text-[10px] uppercase text-slate-500 font-bold tracking-wider ml-1">Select Demo Profile</label>
-              
-              <button 
-                onClick={() => setUserType('healthy')}
-                className="w-full p-4 bg-slate-950/50 hover:bg-slate-800 border border-emerald-900/30 hover:border-emerald-500/50 rounded-2xl flex items-center justify-between group transition-all"
-              >
-                <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
-                        <ShieldCheck size={20}/>
-                    </div>
-                    <div className="text-left">
-                        <div className="text-emerald-400 font-bold text-sm group-hover:text-emerald-300">Healthy Baseline</div>
-                        <div className="text-slate-500 text-xs">Low risk, stable metrics</div>
-                    </div>
-                </div>
-                <ChevronRight className="text-slate-700 group-hover:text-emerald-400 transition-colors" size={18} />
-              </button>
+      <div className="p-4 border-t border-slate-800 bg-slate-900/30">
+        <div className="relative">
+          <input 
+            type="text" 
+            placeholder="Ask a follow up..." 
+            disabled
+            className="w-full bg-black/50 border border-slate-700 rounded-lg py-3 pl-4 pr-10 text-sm text-slate-500 cursor-not-allowed" 
+          />
+          <ArrowRight className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
+        </div>
+        <div className="text-[9px] text-center text-slate-600 mt-2 font-mono uppercase">AI output may vary. Research Prototype.</div>
+      </div>
+    </div>
+  );
+};
 
-              <button 
-                onClick={() => setUserType('risk')}
-                className="w-full p-4 bg-slate-950/50 hover:bg-slate-800 border border-rose-900/30 hover:border-rose-500/50 rounded-2xl flex items-center justify-between group transition-all"
-              >
-                <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-rose-500/10 flex items-center justify-center text-rose-500 group-hover:scale-110 transition-transform">
-                        <Activity size={20}/>
-                    </div>
-                    <div className="text-left">
-                        <div className="text-rose-400 font-bold text-sm group-hover:text-rose-300">High-Risk Detected</div>
-                        <div className="text-slate-500 text-xs">Metabolic instability, stress</div>
-                    </div>
-                </div>
-                <ChevronRight className="text-slate-700 group-hover:text-rose-400 transition-colors" size={18} />
-              </button>
+// --- ANIMATED GRID BACKGROUND ---
+const AnimatedGridBackground = () => {
+  const canvasRef = React.useRef(null);
+  const animationFrameRef = React.useRef(null);
 
-              {realUserId && (
-                <button 
-                  onClick={() => setUserType('real')}
-                  className="w-full p-4 bg-slate-950/50 hover:bg-slate-800 border border-teal-900/30 hover:border-teal-500/50 rounded-2xl flex items-center justify-between group transition-all"
-                >
-                  <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-teal-500/10 flex items-center justify-center text-teal-500 group-hover:scale-110 transition-transform">
-                          <Database size={20}/>
-                      </div>
-                      <div className="text-left">
-                          <div className="text-teal-400 font-bold text-sm group-hover:text-teal-300">Real Backend Data</div>
-                          <div className="text-slate-500 text-xs">Connected to database ({realUserId.slice(0, 8)}...)</div>
-                      </div>
-                  </div>
-                  <ChevronRight className="text-slate-700 group-hover:text-teal-400 transition-colors" size={18} />
-                </button>
-              )}
-            </div>
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-            <div className="relative py-4">
-              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-800"></div></div>
-              <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-wider"><span className="bg-slate-900 px-2 text-slate-600">Or Login</span></div>
-            </div>
+    const ctx = canvas.getContext('2d');
+    const config = {
+      gridSpacing: 50,
+      mouseRadius: 250,
+      stiffness: 0.03,
+      damping: 0.9,
+      drift: 0.5
+    };
 
-            <form className="space-y-3 opacity-50 pointer-events-none select-none">
-              <input type="email" placeholder="researcher@institute.edu" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-300" disabled />
-              <input type="password" placeholder="••••••••" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-300" disabled />
-              <button className="w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-bold disabled:opacity-50">Sign In</button>
-            </form>
-          </div>
+    let width, height;
+    let particles = [];
+    const mouse = { x: null, y: null };
 
-          <div className="bg-amber-950/20 border border-amber-900/30 p-4 rounded-xl flex gap-3 items-start">
-            <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={16} />
-            <p className="text-[10px] text-amber-500/80 leading-relaxed">
-              <strong>NON-DIAGNOSTIC USE ONLY.</strong> This system uses experimental ML models (Isolation Forests) for pattern detection. Not FDA cleared.
-            </p>
-          </div>
+    class Node {
+      constructor(originX, originY) {
+        this.originX = originX;
+        this.originY = originY;
+        this.x = originX;
+        this.y = originY;
+        this.vx = 0;
+        this.vy = 0;
+        this.phase = Math.random() * Math.PI * 2;
+      }
+
+      update() {
+        let dx = this.originX - this.x;
+        let dy = this.originY - this.y;
+        
+        let ax = dx * config.stiffness;
+        let ay = dy * config.stiffness;
+        
+        if (mouse.x != null) {
+          let mDx = mouse.x - this.x;
+          let mDy = mouse.y - this.y;
+          let dist = Math.sqrt(mDx*mDx + mDy*mDy);
+          
+          if (dist < config.mouseRadius) {
+            let force = (config.mouseRadius - dist) / config.mouseRadius;
+            let pushX = -(mDx / dist) * force * 5;
+            let pushY = -(mDy / dist) * force * 5;
+            
+            ax += pushX;
+            ay += pushY;
+          }
+        }
+
+        this.phase += 0.02;
+        ax += Math.cos(this.phase) * config.drift * 0.05;
+        ay += Math.sin(this.phase) * config.drift * 0.05;
+
+        this.vx += ax;
+        this.vy += ay;
+        
+        this.vx *= config.damping;
+        this.vy *= config.damping;
+        
+        this.x += this.vx;
+        this.y += this.vy;
+      }
+
+      draw() {
+        ctx.fillStyle = '#22d3ee';
+        
+        let displacement = Math.sqrt(Math.pow(this.x - this.originX, 2) + Math.pow(this.y - this.originY, 2));
+        let alpha = 0.3 + (displacement / 20);
+        if(alpha > 1) alpha = 1;
+        
+        ctx.globalAlpha = alpha;
+        ctx.fillRect(this.x - 1, this.y - 1, 2, 2);
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    function init() {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+      particles = [];
+
+      const cols = Math.ceil(width / config.gridSpacing);
+      const rows = Math.ceil(height / config.gridSpacing);
+
+      for (let i = 0; i <= cols; i++) {
+        for (let j = 0; j <= rows; j++) {
+          const x = i * config.gridSpacing;
+          const y = j * config.gridSpacing;
+          particles.push(new Node(x, y));
+        }
+      }
+    }
+
+    function drawConnections() {
+      ctx.beginPath();
+      ctx.strokeStyle = 'rgba(34, 211, 238, 0.15)';
+      ctx.lineWidth = 0.5;
+
+      for (let i = 0; i < particles.length; i++) {
+        let p1 = particles[i];
+        
+        for (let j = i + 1; j < particles.length; j++) {
+          let p2 = particles[j];
+          
+          if (Math.abs(p1.originX - p2.originX) > config.gridSpacing) continue;
+          if (Math.abs(p1.originY - p2.originY) > config.gridSpacing) continue;
+
+          let dx = p1.x - p2.x;
+          let dy = p1.y - p2.y;
+          let dist = dx*dx + dy*dy;
+
+          if (dist < 4500) { 
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+          }
+        }
+      }
+      ctx.stroke();
+    }
+
+    function animate() {
+      ctx.clearRect(0, 0, width, height);
+
+      particles.forEach(p => p.update());
+
+      drawConnections();
+      
+      particles.forEach(p => p.draw());
+
+      animationFrameRef.current = requestAnimationFrame(animate);
+    }
+
+    const handleResize = () => {
+      init();
+    };
+
+    const handleMouseMove = (e) => {
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+    };
+
+    const handleMouseLeave = () => {
+      mouse.x = null;
+      mouse.y = null;
+    };
+
+    init();
+    animate();
+
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseleave', handleMouseLeave);
+
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseleave', handleMouseLeave);
+    };
+  }, []);
+
+  return (
+    <>
+      <canvas 
+        ref={canvasRef} 
+        className="absolute top-0 left-0 w-full h-full z-0"
+        style={{ background: '#020617' }}
+      />
+      <div className="absolute top-0 left-0 w-full h-full pointer-events-none z-[1] bg-[radial-gradient(circle_at_center,_transparent_20%,_rgba(2,6,23,0.8)_90%)]"></div>
+      <div className="absolute top-0 left-0 w-full h-full pointer-events-none z-[2] opacity-15 bg-[linear-gradient(to_bottom,_rgba(255,255,255,0),_rgba(255,255,255,0)_50%,_rgba(0,0,0,0.2)_50%,_rgba(0,0,0,0.2))] bg-[length:100%_4px]"></div>
+    </>
+  );
+};
+
+// --- LANDING & AUTH (PRESERVED) ---
+const LandingPage = ({ onNavigateAuth }) => {
+  const [deepSleepHours, setDeepSleepHours] = useState(7.2);
+  
+  const { score, status, statusColor, narrative, ringColor } = useMemo(() => {
+    let calculatedScore = 0;
+    let currentStatus = 'STABLE';
+    let color = 'text-cyan-400';
+    let ring = '#22d3ee';
+    let text = '';
+
+    if (deepSleepHours >= 7.0) {
+      calculatedScore = Math.round(18 - ((deepSleepHours - 7) * 5)); 
+      currentStatus = 'STABLE';
+      color = 'text-cyan-400';
+      ring = '#22d3ee';
+      text = "Autonomic load remains low. Instability Score stays in the stable band, indicating homeostasis is preserved.";
+    } else if (deepSleepHours >= 6.0) {
+      calculatedScore = Math.round(42 - ((deepSleepHours - 6) * 17));
+      currentStatus = 'ELEVATED';
+      color = 'text-amber-400';
+      ring = '#fbbf24';
+      text = "Reduced deep sleep is increasing sympathetic tone. Instability Score is trending upward, suggesting early drift.";
+    } else {
+      calculatedScore = Math.round(85 - ((deepSleepHours - 3) * 13));
+      currentStatus = 'VOLATILE';
+      color = 'text-rose-500';
+      ring = '#f43f5e';
+      text = "Severe deep sleep loss is driving acute autonomic stress. Instability Score has entered the volatile band.";
+    }
+
+    return {
+      score: Math.max(0, Math.min(100, calculatedScore)),
+      status: currentStatus,
+      statusColor: color,
+      ringColor: ring,
+      narrative: text
+    };
+  }, [deepSleepHours]);
+
+  const InstabilityRing = ({ size = "large" }) => {
+    const radius = 45;
+    const circumference = 2 * Math.PI * radius;
+    const strokeDashoffset = circumference - (score / 100) * circumference;
+    const dimensions = size === "large" ? "w-64 h-64 md:w-80 md:h-80" : "w-48 h-48";
+    const strokeWidth = size === "large" ? 4 : 3;
+
+    return (
+      <div className={`relative flex items-center justify-center ${dimensions} transition-all duration-500`}>
+        <div className={`absolute inset-0 rounded-full opacity-20 blur-2xl transition-colors duration-700`} style={{ backgroundColor: ringColor }}></div>
+        <div className="absolute inset-0 border border-slate-800/50 rounded-full animate-[spin_10s_linear_infinite]">
+           <div className="absolute top-0 left-1/2 w-1 h-1 bg-slate-600 rounded-full -translate-x-1/2 -translate-y-1/2"></div>
+        </div>
+        <svg className="absolute inset-0 transform -rotate-90 drop-shadow-2xl" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r={radius} stroke="#0f172a" strokeWidth={strokeWidth} fill="transparent" />
+          <circle cx="50" cy="50" r={radius} stroke={ringColor} strokeWidth={strokeWidth} fill="transparent" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} strokeLinecap="round" className="transition-all duration-700 ease-out" />
+        </svg>
+        <div className="relative flex flex-col items-center justify-center z-10 text-center">
+          <span className="text-xs font-mono text-slate-500 tracking-widest mb-1 uppercase">Instability</span>
+          <span className={`font-rajdhani font-bold text-5xl md:text-6xl tracking-tight tabular-nums transition-colors duration-300 text-white`}>
+            {score}%
+          </span>
+          <span className={`mt-2 px-2 py-0.5 rounded text-[10px] font-bold tracking-widest uppercase border border-opacity-20 ${statusColor} border-current bg-opacity-10 bg-current transition-colors duration-300`}>{status}</span>
         </div>
       </div>
     );
-  }
+  };
 
-  // --- 2. MAIN DASHBOARD LAYOUT ---
   return (
-    <div className="flex h-screen bg-slate-950 text-slate-100 overflow-hidden font-sans selection:bg-teal-500/30">
-      
-      {/* Sidebar (Desktop) */}
-      <aside className="w-20 lg:w-72 bg-slate-900 border-r border-slate-800 flex flex-col hidden md:flex">
-        <div className="h-20 flex items-center px-6 border-b border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-blue-600 rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-teal-900/20">
-              <Activity size={18} className="text-white" />
+    <div className="relative w-full min-h-screen bg-[#02040a] text-slate-300 overflow-x-hidden selection:bg-cyan-500/30 selection:text-cyan-200 font-sans">
+      <div className="fixed inset-0 pointer-events-none z-0">
+        <AnimatedGridBackground />
+      </div>
+
+      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-slate-800/60 bg-[#02040a]/80 backdrop-blur-md h-16">
+        <div className="max-w-7xl mx-auto px-4 h-full flex items-center justify-between">
+          <div className="flex items-center gap-3 group cursor-pointer">
+            <div className="w-8 h-8 rounded bg-slate-900 border border-slate-700 flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.15)] group-hover:shadow-[0_0_20px_rgba(6,182,212,0.4)] transition-all duration-500">
+              <span className="font-rajdhani font-bold text-lg text-white">S</span>
             </div>
-            <span className="font-bold text-lg tracking-tight hidden lg:block">SubHealth<span className="text-teal-400">AI</span></span>
+            <span className="font-rajdhani font-semibold text-lg tracking-wide text-slate-100">SubHealth<span className="text-cyan-400">AI</span></span>
           </div>
+          <div className="hidden md:flex items-center gap-8">
+            <button className="text-xs font-mono font-medium text-slate-400 hover:text-cyan-400 transition-colors uppercase tracking-widest">Research</button>
+            <button className="text-xs font-mono font-medium text-slate-400 hover:text-cyan-400 transition-colors uppercase tracking-widest">Technology</button>
+          </div>
+          <button onClick={onNavigateAuth} className="relative px-5 py-2 bg-slate-900 border border-slate-700 rounded text-xs font-bold text-slate-200 uppercase tracking-wider hover:bg-slate-800 hover:border-slate-500 transition-all duration-300 shadow-lg">
+            Client Login
+          </button>
         </div>
+      </nav>
 
-        <nav className="flex-1 px-4 space-y-1 mt-6">
-          <div className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-4 px-2 hidden lg:block">Core Modules</div>
-          {[
-            { id: 'dashboard', label: 'Daily Overview', icon: BarChart2 },
-            { id: 'multimodal', label: 'Multimodal Data', icon: Activity },
-            { id: 'explainability', label: 'Risk Drivers (XAI)', icon: Brain },
-            { id: 'evidence', label: 'Evidence & Audit', icon: FileText },
-            { id: 'settings', label: 'Devices & Settings', icon: Settings },
-          ].map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all text-sm font-medium group ${
-                activeTab === item.id 
-                  ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20' 
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-              }`}
-            >
-              <item.icon size={18} className={activeTab === item.id ? 'text-teal-400' : 'text-slate-500 group-hover:text-slate-300'} />
-              <span className="hidden lg:block">{item.label}</span>
-            </button>
-          ))}
-        </nav>
+      <div className="relative z-10 pt-32 pb-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col gap-24">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-4 items-center">
+          <div className="space-y-8 max-w-2xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/80 border border-slate-800 backdrop-blur-sm">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+              </span>
+              <span className="text-[10px] font-mono text-cyan-400 tracking-widest uppercase">Public Access Terminal v2.0</span>
+            </div>
 
-        {/* User Profile / Logout */}
-        <div className="p-4 border-t border-slate-800">
-           <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800/50 flex items-center gap-3 hover:bg-slate-800 transition-colors cursor-pointer group" onClick={() => setUserType(null)}>
-              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-slate-700 to-slate-600 flex items-center justify-center text-xs font-bold text-white border border-slate-500">
-                 {currentUser.name.charAt(0)}
-              </div>
-              <div className="hidden lg:block overflow-hidden">
-                 <p className="text-sm font-bold text-slate-200 truncate">{currentUser.name}</p>
-                 <p className="text-[10px] text-slate-500 font-mono truncate">{currentUser.id}</p>
-              </div>
-              <LogOut size={14} className="text-slate-600 group-hover:text-rose-400 ml-auto hidden lg:block" />
-           </div>
-        </div>
-      </aside>
+            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-rajdhani font-bold leading-[1.1] text-white tracking-tight">
+              Detect <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-200 to-cyan-600">Instability</span><br />
+              Before Diagnosis.
+            </h1>
 
-      {/* Mobile Sidebar Overlay */}
-      {isSidebarOpen && (
-          <div className="absolute inset-0 z-50 bg-slate-950/90 backdrop-blur-sm md:hidden p-6 flex flex-col">
-              <div className="flex justify-between items-center mb-8">
-                  <span className="font-bold text-xl">Menu</span>
-                  <button onClick={() => setIsSidebarOpen(false)} className="p-2 bg-slate-800 rounded-full"><X size={20}/></button>
-              </div>
-              <nav className="space-y-2">
-                {[
-                  { id: 'dashboard', label: 'Daily Overview', icon: BarChart2 },
-                  { id: 'multimodal', label: 'Multimodal Data', icon: Activity },
-                  { id: 'explainability', label: 'Risk Drivers (XAI)', icon: Brain },
-                  { id: 'evidence', label: 'Evidence & Audit', icon: FileText },
-                  { id: 'settings', label: 'Devices & Settings', icon: Settings },
-                ].map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => { setActiveTab(item.id); setIsSidebarOpen(false); }}
-                    className={`w-full flex items-center gap-4 px-4 py-4 rounded-xl text-lg font-medium ${
-                      activeTab === item.id ? 'bg-teal-600 text-white' : 'bg-slate-900 text-slate-400'
-                    }`}
-                  >
-                    <item.icon size={24} />
-                    {item.label}
-                  </button>
-                ))}
-              </nav>
-              <button onClick={() => setUserType(null)} className="mt-auto w-full py-4 bg-slate-900 rounded-xl text-slate-400 font-bold flex items-center justify-center gap-2">
-                  <LogOut size={20}/> Logout
+            <p className="text-lg text-slate-400 leading-relaxed font-light border-l-2 border-slate-800 pl-6">
+              SubHealthAI builds a digital twin of your autonomic nervous system to detect 
+              <span className="text-slate-200 font-medium"> sub-clinical drift</span> days before symptoms appear.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-4 pt-4">
+              <button onClick={onNavigateAuth} className="group relative px-8 py-4 bg-white text-black font-bold rounded-full hover:bg-cyan-50 transition-all duration-300 flex items-center justify-center gap-2">
+                <span>Initialize Bio-Twin</span>
+                <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </button>
-          </div>
-      )}
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden relative bg-black">
-        
-        {/* Top Header */}
-        <header className="h-20 bg-slate-900/80 backdrop-blur-xl border-b border-slate-800 flex items-center justify-between px-6 sticky top-0 z-20">
-          <div className="flex items-center gap-4">
-             <button onClick={() => setIsSidebarOpen(true)} className="md:hidden text-slate-400 p-2 hover:bg-slate-800 rounded-lg"><Menu size={24} /></button>
-             <div>
-                <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-3">
-                    {activeTab === 'dashboard' && 'Daily Overview'}
-                    {activeTab === 'multimodal' && 'Multimodal Intelligence'}
-                    {activeTab === 'explainability' && 'Model Explainability'}
-                    {activeTab === 'evidence' && 'Evidence & Audit'}
-                    {activeTab === 'settings' && 'Settings'}
-                    
-                    {reviewerMode && <span className="text-[10px] bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Audit Mode</span>}
-                </h2>
-             </div>
-          </div>
-          
-          <div className="flex items-center gap-3">
-             <button 
-               onClick={() => setReviewerMode(!reviewerMode)}
-               className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium transition-all ${reviewerMode ? 'bg-slate-800 border-slate-600 text-white' : 'bg-transparent border-slate-800 text-slate-500 hover:text-slate-300'}`}
-             >
-                <Eye size={14} /> {reviewerMode ? 'Reviewer View' : 'Reviewer Mode'}
-             </button>
-             
-             <div className="w-px h-6 bg-slate-800 mx-2 hidden md:block"></div>
-
-             <button 
-               onClick={handleGeneratePDF}
-               disabled={pdfGenerating}
-               className="hidden md:flex items-center gap-2 px-4 py-2 bg-teal-600/10 hover:bg-teal-600/20 border border-teal-600/30 text-teal-400 text-xs font-bold rounded-lg transition-all"
-             >
-               {pdfGenerating ? <RefreshCcw className="animate-spin" size={14} /> : <FileText size={14} />}
-               <span>Export Report</span>
-             </button>
-          </div>
-        </header>
-
-        {/* Scrollable Content */}
-        <main className="flex-1 overflow-y-auto p-6 lg:p-8 pb-24 relative">
-           <div className="max-w-7xl mx-auto">
-              {activeTab === 'dashboard' && <OverviewView user={currentUser} onAction={setActiveTab} />}
-              {activeTab === 'multimodal' && <MultimodalView user={currentUser} />}
-              {activeTab === 'explainability' && <ExplainabilityView user={currentUser} />}
-              {activeTab === 'evidence' && <EvidenceView reviewerMode={reviewerMode} />}
-              {activeTab === 'settings' && <SettingsView />}
-           </div>
-        </main>
-
-        {/* FLOATING COPILOT BAR (Click to open overlay) */}
-        {!isCopilotOpen && (
-            <div className="fixed bottom-6 left-0 right-0 flex justify-center z-50 ml-0 lg:ml-72 pointer-events-none">
-                <div className="w-full max-w-2xl px-6 pointer-events-auto">
-                    <div 
-                        onClick={() => setIsCopilotOpen(true)}
-                        className="bg-slate-950/90 backdrop-blur-xl border border-slate-800/50 rounded-2xl p-2 pl-3 flex items-center gap-3 shadow-2xl shadow-black/50 ring-1 ring-white/5 cursor-pointer hover:bg-slate-900/90 transition-all group"
-                    >
-                        <div className="p-2 bg-teal-500/10 rounded-xl group-hover:bg-teal-500/20 transition-colors"><Zap className="text-teal-400" size={18} /></div>
-                        <span className="flex-1 text-sm text-slate-400 group-hover:text-slate-200 transition-colors">Ask Dr. AI about your recent metabolic spike...</span>
-                        <button className="p-2 bg-teal-600 hover:bg-teal-500 text-white rounded-xl transition-colors"><MessageSquare size={18} /></button>
-                    </div>
-                </div>
+              <button className="px-8 py-4 rounded-full border border-slate-700 text-slate-300 hover:text-white hover:border-slate-500 hover:bg-slate-800/50 transition-all duration-300">
+                View Technical Brief
+              </button>
             </div>
-        )}
-        
-        {/* COPILOT OVERLAY COMPONENT */}
-        <CopilotOverlay isOpen={isCopilotOpen} onClose={() => setIsCopilotOpen(false)} user={currentUser} />
+          </div>
+        </div>
 
+        {/* Interactive Demo */}
+        <div className="relative bg-slate-900/30 border border-slate-800/50 rounded-2xl p-8 lg:p-12 backdrop-blur-sm overflow-hidden">
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none"></div>
+          <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+            <div className="space-y-8">
+              <div className="space-y-2">
+                <div className="inline-block px-2 py-0.5 bg-slate-800 text-[10px] font-mono text-slate-400 uppercase tracking-widest rounded">Interactive Demo</div>
+                <h2 className="text-3xl md:text-4xl font-rajdhani font-bold text-white">See the invisible.</h2>
+                <p className="text-slate-400">Adjust deep sleep duration to see how autonomic drift changes the Instability Score.</p>
+              </div>
+              <div className="p-6 bg-black/40 border border-slate-800 rounded-xl space-y-6 shadow-inner">
+                <div className="flex justify-between items-end">
+                  <label className="text-sm font-mono text-slate-400 uppercase tracking-wider">Deep Sleep Duration</label>
+                  <div className="text-2xl font-rajdhani font-bold text-white tabular-nums">{deepSleepHours.toFixed(1)} <span className="text-sm text-slate-500 font-normal">hrs</span></div>
+                </div>
+                <div className="relative h-8 flex items-center">
+                  <input type="range" min="3.0" max="9.0" step="0.1" value={deepSleepHours} onChange={(e) => setDeepSleepHours(parseFloat(e.target.value))} className="absolute w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-0 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-slate-200 [&::-webkit-slider-thumb]:border-4 [&::-webkit-slider-thumb]:border-slate-900 [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(255,255,255,0.5)]" />
+                </div>
+                <div className="flex justify-between text-[10px] font-mono text-slate-600 uppercase tracking-widest"><span>Deprived</span><span>Optimal</span></div>
+              </div>
+            </div>
+            <div className="flex flex-col items-center lg:items-start gap-8">
+              <div className="flex items-center gap-8">
+                <InstabilityRing size="small" />
+                <div className="hidden sm:block w-px h-24 bg-gradient-to-b from-transparent via-slate-700 to-transparent"></div>
+                <div className="hidden sm:block space-y-1">
+                    <div className="text-xs font-mono text-slate-500 uppercase tracking-widest">Assessment</div>
+                    <div className={`text-2xl font-rajdhani font-bold ${statusColor}`}>{status}</div>
+                    <div className="text-xs text-slate-600">Confidence: 98.4%</div>
+                </div>
+              </div>
+              <div className={`p-4 border-l-2 ${deepSleepHours >= 7 ? 'border-cyan-500/50 bg-cyan-950/10' : deepSleepHours >= 6 ? 'border-amber-500/50 bg-amber-950/10' : 'border-rose-500/50 bg-rose-950/10' } transition-colors duration-500`}>
+                <h4 className="text-xs font-mono text-slate-400 mb-1 uppercase tracking-wider flex items-center gap-2"><Zap className="w-3 h-3" /> System Analysis</h4>
+                <p className="text-slate-300 text-sm leading-relaxed max-w-md transition-all duration-300 ease-in-out">{narrative}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Tech Strip */}
+        <div className="border-t border-slate-800/50 pt-12 pb-8">
+           <div className="flex flex-col md:flex-row items-start md:items-center gap-8 md:gap-16">
+              <span className="text-sm font-mono text-slate-500 uppercase tracking-[0.2em]">How SubHealthAI Thinks:</span>
+              <div className="flex flex-wrap gap-12">
+                 <div className="flex items-center gap-4 group">
+                    <div className="p-3 rounded-lg bg-[#0f172a] border border-slate-800 text-cyan-500 group-hover:border-cyan-500/50 transition-colors shadow-lg">
+                       <ScanLine className="w-5 h-5" />
+                    </div>
+                    <div>
+                       <div className="text-sm font-bold text-slate-200 font-rajdhani">Isolation Forest</div>
+                       <div className="text-xs text-slate-500">Anomaly detection</div>
+                    </div>
+                 </div>
+                 <div className="flex items-center gap-4 group">
+                    <div className="p-3 rounded-lg bg-[#0f172a] border border-slate-800 text-cyan-500 group-hover:border-cyan-500/50 transition-colors shadow-lg">
+                       <Brain className="w-5 h-5" />
+                    </div>
+                    <div>
+                       <div className="text-sm font-bold text-slate-200 font-rajdhani">GRU Sequence Model</div>
+                       <div className="text-xs text-slate-500">Baseline learning</div>
+                    </div>
+                 </div>
+                 <div className="flex items-center gap-4 group">
+                    <div className="p-3 rounded-lg bg-[#0f172a] border border-slate-800 text-cyan-500 group-hover:border-cyan-500/50 transition-colors shadow-lg">
+                       <Globe className="w-5 h-5" />
+                    </div>
+                    <div>
+                       <div className="text-sm font-bold text-slate-200 font-rajdhani">SHAP Explainer</div>
+                       <div className="text-xs text-slate-500">Driver attribution</div>
+                    </div>
+                 </div>
+              </div>
+           </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const AuthScreen = ({ onLogin }) => {
+  const [mode, setMode] = useState('login'); // 'login' | 'signup'
+
+  return (
+    <div className="min-h-screen bg-[#02040a] flex items-center justify-center relative overflow-hidden">
+      <div className="absolute inset-0 z-0">
+        <AnimatedGridBackground />
+      </div>
+
+      <div className="relative z-10 w-full max-w-md px-6 animate-[fadeInUp_0.5s_ease-out]">
+        
+        {/* Main Auth Card */}
+        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-8 backdrop-blur-xl shadow-2xl mb-6">
+           <div className="text-center mb-8">
+             <div className="inline-flex items-center justify-center w-12 h-12 mb-4 bg-slate-900 border border-slate-700 rounded-xl shadow-[0_0_20px_rgba(34,211,238,0.1)]">
+                <Lock className="w-5 h-5 text-cyan-400" />
+             </div>
+             <h2 className="text-2xl font-['Unbounded'] font-bold text-white mb-2">Secure Gateway</h2>
+             <p className="text-slate-500 text-xs font-mono uppercase tracking-wide">Restricted Access // Bio-Twin v2.4</p>
+           </div>
+
+           {/* Tab Switcher */}
+           <div className="flex bg-black/40 p-1 rounded-lg mb-6 border border-white/5">
+             <button 
+               onClick={() => setMode('login')}
+               className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded transition-all ${mode === 'login' ? 'bg-slate-800 text-white shadow-sm border border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
+             >
+               Identity Login
+             </button>
+             <button 
+               onClick={() => setMode('signup')}
+               className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded transition-all ${mode === 'signup' ? 'bg-slate-800 text-white shadow-sm border border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
+             >
+               Create Protocol
+             </button>
+           </div>
+
+           <div className="space-y-4">
+             {/* Email Field */}
+             <div className="space-y-1.5">
+               <label className="text-[9px] font-mono text-slate-400 uppercase tracking-widest ml-1">Bio-ID (Email)</label>
+               <div className="relative group">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600 group-focus-within:text-cyan-400 transition-colors" />
+                  <input 
+                    type="email" 
+                    className="w-full bg-black/40 border border-slate-800 rounded-lg py-3 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-all placeholder:text-slate-700 font-mono" 
+                    placeholder="researcher@subhealth.ai" 
+                  />
+               </div>
+             </div>
+
+             {/* Password Field */}
+             <div className="space-y-1.5">
+               <label className="text-[9px] font-mono text-slate-400 uppercase tracking-widest ml-1">Passphrase</label>
+               <div className="relative group">
+                  <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600 group-focus-within:text-cyan-400 transition-colors" />
+                  <input 
+                    type="password" 
+                    className="w-full bg-black/40 border border-slate-800 rounded-lg py-3 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-all placeholder:text-slate-700 font-mono" 
+                    placeholder="••••••••••••" 
+                  />
+               </div>
+             </div>
+
+             {mode === 'signup' && (
+               <div className="space-y-1.5 animate-[fadeInUp_0.3s_ease-out]">
+                 <label className="text-[9px] font-mono text-slate-400 uppercase tracking-widest ml-1">Confirm Passphrase</label>
+                 <div className="relative group">
+                    <Fingerprint className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600 group-focus-within:text-cyan-400 transition-colors" />
+                    <input 
+                      type="password" 
+                      className="w-full bg-black/40 border border-slate-800 rounded-lg py-3 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-all placeholder:text-slate-700 font-mono" 
+                      placeholder="••••••••••••" 
+                    />
+                 </div>
+               </div>
+             )}
+
+             <button className="w-full py-3 bg-white hover:bg-cyan-50 text-black font-['Unbounded'] font-bold text-xs uppercase tracking-wider rounded-lg transition-all mt-4 shadow-[0_0_20px_rgba(255,255,255,0.1)]">
+                {mode === 'login' ? 'Authenticate Session' : 'Initialize New Twin'}
+             </button>
+           </div>
+        </div>
+
+        {/* Reviewer Bypass Section */}
+        <div className="relative">
+           <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-800"></div></div>
+           <div className="relative flex justify-center mb-6"><span className="bg-[#02040a] px-3 text-[9px] text-slate-600 font-mono uppercase tracking-widest border border-slate-800 rounded-full">Reviewer Bypass</span></div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 opacity-80 hover:opacity-100 transition-opacity">
+            <button 
+              onClick={() => onLogin('healthy')}
+              className="py-3 px-4 rounded-lg bg-slate-900/50 border border-slate-800 hover:border-cyan-500/30 hover:bg-slate-800 text-slate-400 hover:text-cyan-400 transition-all duration-300 text-[9px] font-mono uppercase tracking-widest flex flex-col items-center gap-2 group"
+            >
+              <ShieldCheck size={16} className="group-hover:scale-110 transition-transform" />
+              <span>Nominal State</span>
+            </button>
+            <button 
+              onClick={() => onLogin('risk')}
+              className="py-3 px-4 rounded-lg bg-slate-900/50 border border-slate-800 hover:border-amber-500/30 hover:bg-slate-800 text-slate-400 hover:text-amber-400 transition-all duration-300 text-[9px] font-mono uppercase tracking-widest flex flex-col items-center gap-2 group"
+            >
+              <Activity size={16} className="group-hover:scale-110 transition-transform" />
+              <span>High Drift</span>
+            </button>
+        </div>
+
+        <p className="text-center mt-8 text-[9px] text-slate-700 font-mono">
+           Authorized Personnel Only. All Access Logged.
+        </p>
       </div>
     </div>
   );
 }
 
+// --- DASHBOARD SHELL ---
+const DashboardShell = ({ children, activePage, setActivePage, onLogout, onToggleCopilot }) => {
+  const navItems = [
+    { id: 'dashboard', icon: LayoutGrid, label: 'Dashboard' },
+    { id: 'insights', icon: TrendingUp, label: 'Insights' },
+    { id: 'shap', icon: GitCommit, label: 'Causal Drivers' },
+    { id: 'evidence', icon: Database, label: 'Evidence' },
+    { id: 'settings', icon: Settings, label: 'Data Sources' },
+  ];
+
+  return (
+    <div className="h-screen w-full bg-[#02040a] text-slate-300 flex overflow-hidden font-sans">
+      <div className="fixed inset-0 pointer-events-none z-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-5"></div>
+      
+      {/* Sidebar */}
+      <div className="w-20 h-full border-r border-white/5 bg-[#02040a]/80 backdrop-blur-xl flex flex-col items-center py-8 z-50 hidden md:flex">
+        <div className="mb-10">
+          <div className="w-10 h-10 rounded bg-slate-900 border border-white/10 flex items-center justify-center">
+            <span className="font-['Unbounded'] font-bold text-cyan-400">S</span>
+          </div>
+        </div>
+        <div className="flex flex-col gap-6 flex-1 w-full items-center">
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setActivePage(item.id)}
+              className={`p-3 rounded-xl transition-all duration-300 group relative ${activePage === item.id ? 'bg-slate-900 text-cyan-400 border border-white/10 shadow-[0_0_15px_rgba(34,211,238,0.15)]' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-900/50'}`}
+            >
+              <item.icon size={20} strokeWidth={1.5} />
+              <div className="absolute left-16 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-slate-900 border border-white/10 text-slate-300 text-[10px] font-['Unbounded'] uppercase rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
+                {item.label}
+              </div>
+            </button>
+          ))}
+        </div>
+        <div className="mt-auto">
+           <button onClick={onLogout} className="p-3 rounded hover:bg-slate-900 text-slate-600 hover:text-rose-400 transition-colors"><LogOut size={18} /></button>
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col relative z-10">
+        {/* Top Bar */}
+        <div className="h-20 w-full border-b border-white/5 bg-[#02040a]/80 backdrop-blur-md flex items-center justify-between px-8">
+           <div className="flex flex-col">
+             <h1 className="text-lg font-['Unbounded'] font-semibold text-white tracking-tight uppercase">{navItems.find(i => i.id === activePage)?.label}</h1>
+             <span className="text-[9px] text-slate-500 font-mono tracking-wider uppercase">SubClinical Intelligence Engine v2.4</span>
+             <span className="text-[9px] text-amber-400 font-mono tracking-wider uppercase">Demo Environment · Synthetic data · Non-diagnostic prototype</span>
+           </div>
+           <div className="flex items-center gap-6">
+             <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-900/50 rounded border border-white/5 group hover:border-white/10 transition-colors cursor-pointer">
+               <Search size={12} className="text-slate-500 group-hover:text-slate-300" />
+               <span className="text-[10px] text-slate-600 font-mono group-hover:text-slate-400 tracking-widest">CMD+K</span>
+             </div>
+             <button onClick={onToggleCopilot} className="px-4 py-2 bg-slate-800 text-slate-300 text-xs font-bold rounded flex items-center gap-2 hover:bg-slate-700 hover:text-white transition-colors">
+                <MessageSquare size={14} className="text-cyan-400" />
+                Ask Copilot
+             </button>
+             <div className="w-8 h-8 rounded-full bg-slate-900 border border-white/5 flex items-center justify-center relative">
+                <Bell size={14} className="text-slate-400" />
+                <div className="absolute top-0 right-0 w-2 h-2 bg-amber-500 rounded-full"></div>
+             </div>
+           </div>
+        </div>
+
+        {/* Page Content Scrollable */}
+        <div className="flex-1 overflow-y-auto p-6 lg:p-8 pb-24">
+           {children}
+        </div>
+      </main>
+    </div>
+  );
+};
+
+// --- APP ORCHESTRATOR ---
+export default function App() {
+  const [view, setView] = useState('landing'); // 'landing' | 'auth' | 'dashboard'
+  const [userMode, setUserMode] = useState('healthy');
+  const [activePage, setActivePage] = useState('dashboard');
+  const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+
+  useEffect(() => {
+    const link = document.createElement('link');
+    link.href = 'https://fonts.googleapis.com/css2?family=Unbounded:wght@300;400;600;700&family=Space+Mono:wght@400;700&family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap';
+    link.rel = 'stylesheet';
+    document.head.appendChild(link);
+  }, []);
+
+  const handleLogin = (mode) => {
+    setUserMode(mode);
+    setView('dashboard');
+  };
+
+  const currentData = MOCK_DATA[userMode];
+
+  return (
+    <>
+      <style>{`
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+      `}</style>
+      
+      {view === 'landing' && <LandingPage onNavigateAuth={() => setView('auth')} />}
+      
+      {view === 'auth' && <AuthScreen onLogin={handleLogin} />}
+      
+      {view === 'dashboard' && (
+        <>
+          <DashboardShell 
+            activePage={activePage} 
+            setActivePage={setActivePage} 
+            onLogout={() => setView('landing')}
+            onToggleCopilot={() => setIsCopilotOpen(true)}
+          >
+            {activePage === 'dashboard' && <DashboardView profile={userMode} data={currentData} onToggleCopilot={() => setIsCopilotOpen(true)} />}
+            {activePage === 'insights' && <MultimodalView profile={userMode} data={currentData} />}
+            {activePage === 'shap' && <ExplainabilityView profile={userMode} data={currentData} />}
+            {activePage === 'evidence' && <EvidenceView />}
+            {activePage === 'settings' && <DataSourcesView userMode={userMode} />}
+          </DashboardShell>
+          
+          <CopilotDrawer 
+            isOpen={isCopilotOpen} 
+            onClose={() => setIsCopilotOpen(false)} 
+            profile={userMode} 
+            data={currentData} 
+          />
+        </>
+      )}
+    </>
+  );
+}
