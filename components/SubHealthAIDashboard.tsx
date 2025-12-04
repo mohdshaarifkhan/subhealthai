@@ -2,6 +2,8 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import useSWR from 'swr';
 import { 
   Activity, Brain, Shield, ChevronRight, Play, ScanLine, Globe, Zap, 
   ArrowRight, Lock, ShieldCheck, Heart, Wind, Thermometer, 
@@ -503,10 +505,13 @@ const DataSourcesView = ({ userMode }) => {
 };
 
 // --- VIEWS ---
-const DashboardView = ({ profile, data, onToggleCopilot }) => {
+const DashboardView = ({ profile, data, onToggleCopilot, forecastSeries }) => {
   const isRisk = profile === 'risk';
   const chartColor = isRisk ? '#fbbf24' : '#22d3ee';
-  const chartData = isRisk ? [45, 50, 65, 78, 82, 80, 85, 90, 88, 92, 85, 80] : [12, 15, 10, 14, 12, 18, 15, 12, 10, 14, 12, 15];
+  // Use real forecast series if available, otherwise use mock data
+  const chartData = forecastSeries && forecastSeries.length > 0
+    ? forecastSeries.map((point: any) => Math.round((point.risk || 0) * 100))
+    : (isRisk ? [45, 50, 65, 78, 82, 80, 85, 90, 88, 92, 85, 80] : [12, 15, 10, 14, 12, 18, 15, 12, 10, 14, 12, 15]);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 gap-6 max-w-7xl mx-auto animate-in fade-in duration-500">
@@ -631,9 +636,12 @@ const DashboardView = ({ profile, data, onToggleCopilot }) => {
   );
 };
 
-const MultimodalView = ({ profile, data }) => {
+const MultimodalView = ({ profile, data, trendsData }) => {
   const [tab, setTab] = useState('vitals');
   const TABS = ['vitals', 'sleep', 'labs', 'symptoms', 'devices'];
+  
+  // Get HRV trend from trends API if available
+  const hrvTrend = trendsData?.series?.hrv_avg || [];
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -658,7 +666,14 @@ const MultimodalView = ({ profile, data }) => {
                    <span className="text-cyan-400">● HRV</span>
                    <span className="text-slate-600">● Baseline</span>
                  </div>
-                 <MiniAreaChart data={profile === 'healthy' ? [110, 112, 115, 118, 114, 115, 116] : [45, 42, 38, 35, 30, 25, 22]} color={profile === 'healthy' ? '#22d3ee' : '#f59e0b'} height={100} />
+                 <MiniAreaChart 
+                   data={hrvTrend.length > 0 
+                     ? hrvTrend.map((p: any) => p.y || 0).slice(-7)
+                     : (profile === 'healthy' ? [110, 112, 115, 118, 114, 115, 116] : [45, 42, 38, 35, 30, 25, 22])
+                   } 
+                   color={profile === 'healthy' ? '#22d3ee' : '#f59e0b'} 
+                   height={100} 
+                 />
               </div>
             </BentoCard>
             <BentoCard title="Current Status" icon={Zap}>
@@ -1393,6 +1408,14 @@ const LandingPage = ({ onNavigateAuth }) => {
 
 const AuthScreen = ({ onLogin }) => {
   const [mode, setMode] = useState('login'); // 'login' | 'signup'
+  const [userId, setUserId] = useState('');
+  const [userEmail, setUserEmail] = useState('');
+
+  const handleSubmit = () => {
+    if (userEmail || userId) {
+      onLogin(userEmail || userId);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#02040a] flex items-center justify-center relative overflow-hidden">
@@ -1429,15 +1452,26 @@ const AuthScreen = ({ onLogin }) => {
            </div>
 
            <div className="space-y-4">
-             {/* Email Field */}
+             {/* User ID/Email Field */}
              <div className="space-y-1.5">
-               <label className="text-[9px] font-mono text-slate-400 uppercase tracking-widest ml-1">Bio-ID (Email)</label>
+               <label className="text-[9px] font-mono text-slate-400 uppercase tracking-widest ml-1">Bio-ID (Email or UUID)</label>
                <div className="relative group">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600 group-focus-within:text-cyan-400 transition-colors" />
                   <input 
-                    type="email" 
+                    type="text" 
+                    value={userEmail || userId}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val.includes('@')) {
+                        setUserEmail(val);
+                        setUserId('');
+                      } else {
+                        setUserId(val);
+                        setUserEmail('');
+                      }
+                    }}
                     className="w-full bg-black/40 border border-slate-800 rounded-lg py-3 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-all placeholder:text-slate-700 font-mono" 
-                    placeholder="researcher@subhealth.ai" 
+                    placeholder="researcher@subhealth.ai or user-uuid" 
                   />
                </div>
              </div>
@@ -1469,7 +1503,10 @@ const AuthScreen = ({ onLogin }) => {
                </div>
              )}
 
-             <button className="w-full py-3 bg-white hover:bg-cyan-50 text-black font-['Unbounded'] font-bold text-xs uppercase tracking-wider rounded-lg transition-all mt-4 shadow-[0_0_20px_rgba(255,255,255,0.1)]">
+             <button 
+               onClick={handleSubmit}
+               className="w-full py-3 bg-white hover:bg-cyan-50 text-black font-['Unbounded'] font-bold text-xs uppercase tracking-wider rounded-lg transition-all mt-4 shadow-[0_0_20px_rgba(255,255,255,0.1)]"
+             >
                 {mode === 'login' ? 'Authenticate Session' : 'Initialize New Twin'}
              </button>
            </div>
@@ -1483,18 +1520,18 @@ const AuthScreen = ({ onLogin }) => {
 
         <div className="grid grid-cols-2 gap-4 opacity-80 hover:opacity-100 transition-opacity">
             <button 
-              onClick={() => onLogin('healthy')}
+              onClick={() => onLogin('demo-healthy')}
               className="py-3 px-4 rounded-lg bg-slate-900/50 border border-slate-800 hover:border-cyan-500/30 hover:bg-slate-800 text-slate-400 hover:text-cyan-400 transition-all duration-300 text-[9px] font-mono uppercase tracking-widest flex flex-col items-center gap-2 group"
             >
               <ShieldCheck size={16} className="group-hover:scale-110 transition-transform" />
-              <span>Nominal State</span>
+              <span>Demo: Nominal</span>
             </button>
             <button 
-              onClick={() => onLogin('risk')}
+              onClick={() => onLogin('demo-risk')}
               className="py-3 px-4 rounded-lg bg-slate-900/50 border border-slate-800 hover:border-amber-500/30 hover:bg-slate-800 text-slate-400 hover:text-amber-400 transition-all duration-300 text-[9px] font-mono uppercase tracking-widest flex flex-col items-center gap-2 group"
             >
               <Activity size={16} className="group-hover:scale-110 transition-transform" />
-              <span>High Drift</span>
+              <span>Demo: High Drift</span>
             </button>
         </div>
 
@@ -1507,7 +1544,7 @@ const AuthScreen = ({ onLogin }) => {
 }
 
 // --- DASHBOARD SHELL ---
-const DashboardShell = ({ children, activePage, setActivePage, onLogout, onToggleCopilot }) => {
+const DashboardShell = ({ children, activePage, setActivePage, onLogout, onToggleCopilot, userId }) => {
   const navItems = [
     { id: 'dashboard', icon: LayoutGrid, label: 'Dashboard' },
     { id: 'insights', icon: TrendingUp, label: 'Insights' },
@@ -1556,6 +1593,12 @@ const DashboardShell = ({ children, activePage, setActivePage, onLogout, onToggl
              <span className="text-[9px] text-amber-400 font-mono tracking-wider uppercase">Demo Environment · Synthetic data · Non-diagnostic prototype</span>
            </div>
            <div className="flex items-center gap-6">
+             {userId && userId !== 'demo-healthy' && userId !== 'demo-risk' && (
+               <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-900/50 rounded border border-white/5">
+                 <User size={12} className="text-cyan-400" />
+                 <span className="text-[10px] text-slate-400 font-mono tracking-widest truncate max-w-[120px]">{userId.slice(0, 8)}...</span>
+               </div>
+             )}
              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-900/50 rounded border border-white/5 group hover:border-white/10 transition-colors cursor-pointer">
                <Search size={12} className="text-slate-500 group-hover:text-slate-300" />
                <span className="text-[10px] text-slate-600 font-mono group-hover:text-slate-400 tracking-widest">CMD+K</span>
@@ -1580,12 +1623,150 @@ const DashboardShell = ({ children, activePage, setActivePage, onLogout, onToggl
   );
 };
 
+// --- DATA TRANSFORMATION ---
+const transformApiDataToDashboard = (dash, exp, risk) => {
+  if (!dash || !exp) return null;
+
+  const riskScore = risk?.forecast_risk ?? dash?.forecast?.latest?.risk ?? 0;
+  const instabilityScore = Math.round(riskScore * 100);
+  
+  // Determine status based on risk score
+  let status = 'STABLE';
+  if (instabilityScore >= 70) status = 'VOLATILE';
+  else if (instabilityScore >= 40) status = 'ELEVATED';
+  
+  // Get narrative from explain API or generate from risk
+  const narrative = exp?.rationale || 
+    (instabilityScore >= 70 
+      ? "Suppressed HRV and elevated resting HR vs your 28-day baseline suggest ongoing subclinical stress. Sympathetic overdrive detected."
+      : "Autonomic load is low. Sleep and recovery are aligned with your 28-day baseline. Parasympathetic tone is dominant.");
+
+  // Get vitals from metric snapshot or dashboard anomaly data
+  const anomalies = dash?.anomaly?.items || [];
+  const rhrAnomaly = anomalies.find(a => a.signal === 'rhr');
+  const hrvAnomaly = anomalies.find(a => a.signal === 'hrv');
+  const sleepAnomaly = anomalies.find(a => a.signal === 'sleep');
+  
+  // Get real metrics from metric_snapshot API if available
+  const hrvItem = metricSnapshot?.items?.hrv_avg;
+  const rhrItem = metricSnapshot?.items?.rhr;
+  const sleepItem = metricSnapshot?.items?.sleep_minutes;
+  
+  const vitals = {
+    hrv: hrvItem?.today ? Math.round(hrvItem.today) : (hrvAnomaly?.z ? Math.round(50 + (hrvAnomaly.z * 15)) : 50),
+    rhr: rhrItem?.today ? Math.round(rhrItem.today) : (rhrAnomaly?.z ? Math.round(60 + (rhrAnomaly.z * 5)) : 60),
+    resp: 14, // Not in metrics, using default
+    temp: 98.2 // Not in metrics, using default
+  };
+
+  // Transform SHAP contributors to drivers
+  const drivers = (exp?.top_contributors || []).slice(0, 3).map(c => {
+    const featureNames = {
+      'rhr': 'Resting Heart Rate',
+      'hrv_avg': 'HRV',
+      'sleep_minutes': 'Deep Sleep',
+      'steps': 'Activity Level',
+      'stress_proxy': 'Stress Proxy'
+    };
+    return {
+      name: featureNames[c.feature] || c.feature,
+      impact: Math.round(c.shap_value * 100),
+      value: c.feature === 'hrv_avg' ? `${vitals.hrv}ms` : 
+             c.feature === 'rhr' ? `${vitals.rhr}bpm` :
+             c.feature === 'sleep_minutes' ? `${Math.round((sleepItem?.today || 420) / 60 * 10) / 10}h` :
+             c.feature === 'steps' ? `${metricSnapshot?.items?.steps?.today || 'N/A'}` : 'N/A'
+    };
+  });
+
+  // Determine drift levels
+  const drift = {
+    metabolic: instabilityScore >= 60 ? 'Moderate' : 'Low',
+    cardio: instabilityScore >= 50 ? 'Elevated' : 'Low',
+    inflammation: instabilityScore >= 70 ? 'Elevated' : 'Normal'
+  };
+
+  // Sleep data (from metrics or estimated)
+  const totalSleepMinutes = sleepItem?.today || (sleepAnomaly?.z ? (420 + (sleepAnomaly.z * 60)) : 420);
+  const totalSleepHours = totalSleepMinutes / 60;
+  // Estimate sleep stages (rough approximation)
+  const sleep = {
+    deep: Math.max(0.4, Math.min(2.5, totalSleepHours * 0.25)),
+    rem: Math.max(0.5, Math.min(2.5, totalSleepHours * 0.20)),
+    light: Math.max(2.0, totalSleepHours * 0.50),
+    awake: Math.max(0.2, totalSleepHours * 0.05)
+  };
+
+  // Labs (would come from separate API)
+  const labs = [
+    { name: 'hs-CRP', value: instabilityScore >= 70 ? '3.2' : '0.5', unit: 'mg/L', status: instabilityScore >= 70 ? 'High' : 'Optimal' },
+    { name: 'Fasting Glucose', value: instabilityScore >= 70 ? '104' : '85', unit: 'mg/dL', status: instabilityScore >= 70 ? 'Elevated' : 'Optimal' },
+    { name: 'HbA1c', value: instabilityScore >= 70 ? '5.8' : '5.1', unit: '%', status: instabilityScore >= 70 ? 'Borderline' : 'Optimal' }
+  ];
+
+  return {
+    instabilityScore,
+    status,
+    narrative,
+    vitals,
+    trends: { hrv: hrvAnomaly?.z > 0 ? 'down' : 'up', rhr: rhrAnomaly?.z > 0 ? 'up' : 'stable' },
+    drivers,
+    drift,
+    sleep,
+    labs
+  };
+};
+
 // --- APP ORCHESTRATOR ---
 export default function App() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [view, setView] = useState('landing'); // 'landing' | 'auth' | 'dashboard'
-  const [userMode, setUserMode] = useState('healthy');
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userMode, setUserMode] = useState<'healthy' | 'risk' | 'demo-healthy' | 'demo-risk' | null>(null);
   const [activePage, setActivePage] = useState('dashboard');
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+  const [version] = useState('phase3-v1-wes');
+
+  // Get user from URL params if available
+  useEffect(() => {
+    const urlUser = searchParams?.get('user');
+    if (urlUser && !userId) {
+      setUserId(urlUser);
+      setView('dashboard');
+    }
+  }, [searchParams, userId]);
+
+  // Fetch real data when user is set
+  const fetcher = (url: string) => fetch(url).then((res) => res.json());
+  const shouldFetch = Boolean(userId && userId !== 'demo-healthy' && userId !== 'demo-risk');
+  
+  const { data: dash, error: dashError } = useSWR(
+    shouldFetch ? `/api/dashboard?user=${encodeURIComponent(userId || '')}&version=${encodeURIComponent(version)}` : null,
+    fetcher
+  );
+
+  const { data: exp, error: expError } = useSWR(
+    shouldFetch ? `/api/explain?user=${encodeURIComponent(userId || '')}&version=${encodeURIComponent(version)}` : null,
+    fetcher
+  );
+
+  const { data: riskData } = useSWR(
+    shouldFetch ? `/api/risk?user=${encodeURIComponent(userId || '')}&version=${encodeURIComponent(version)}` : null,
+    fetcher
+  );
+
+  const { data: metricSnapshot } = useSWR(
+    shouldFetch ? `/api/metric_snapshot?user=${encodeURIComponent(userId || '')}` : null,
+    fetcher
+  );
+
+  const { data: trendsData } = useSWR(
+    shouldFetch ? `/api/trends?user=${encodeURIComponent(userId || '')}&days=7` : null,
+    fetcher
+  );
+
+  const loading = shouldFetch ? (!dash || !exp) : false;
+  const error = dashError || expError;
 
   useEffect(() => {
     const link = document.createElement('link');
@@ -1594,12 +1775,43 @@ export default function App() {
     document.head.appendChild(link);
   }, []);
 
-  const handleLogin = (mode) => {
-    setUserMode(mode);
-    setView('dashboard');
+  const handleLogin = (userIdentifier: string) => {
+    if (userIdentifier === 'demo-healthy' || userIdentifier === 'demo-risk') {
+      setUserMode(userIdentifier);
+      setUserId(null);
+      setView('dashboard');
+    } else {
+      setUserId(userIdentifier);
+      setUserMode(null);
+      // Update URL with user param
+      const url = new URL(window.location.href);
+      url.searchParams.set('user', userIdentifier);
+      router.push(url.toString());
+      setView('dashboard');
+    }
   };
 
-  const currentData = MOCK_DATA[userMode];
+  // Determine current data source
+  const currentData = useMemo(() => {
+    if (userMode === 'demo-healthy' || userMode === 'demo-risk') {
+      return MOCK_DATA[userMode === 'demo-healthy' ? 'healthy' : 'risk'];
+    }
+    
+    if (userId && dash && exp) {
+      const transformed = transformApiDataToDashboard(dash, exp, riskData);
+      if (transformed) return transformed;
+    }
+    
+    // Fallback to healthy mock data
+    return MOCK_DATA.healthy;
+  }, [userMode, userId, dash, exp, riskData]);
+
+  const profile = useMemo(() => {
+    if (userMode === 'demo-risk') return 'risk';
+    if (userMode === 'demo-healthy') return 'healthy';
+    if (currentData?.instabilityScore >= 70) return 'risk';
+    return 'healthy';
+  }, [userMode, currentData]);
 
   return (
     <>
@@ -1616,22 +1828,58 @@ export default function App() {
           <DashboardShell 
             activePage={activePage} 
             setActivePage={setActivePage} 
-            onLogout={() => setView('landing')}
+            onLogout={() => {
+              setView('landing');
+              setUserId(null);
+              setUserMode(null);
+              router.push('/');
+            }}
             onToggleCopilot={() => setIsCopilotOpen(true)}
+            userId={userId}
           >
-            {activePage === 'dashboard' && <DashboardView profile={userMode} data={currentData} onToggleCopilot={() => setIsCopilotOpen(true)} />}
-            {activePage === 'insights' && <MultimodalView profile={userMode} data={currentData} />}
-            {activePage === 'shap' && <ExplainabilityView profile={userMode} data={currentData} />}
-            {activePage === 'evidence' && <EvidenceView />}
-            {activePage === 'settings' && <DataSourcesView userMode={userMode} />}
+            {loading && !currentData && (
+              <div className="flex items-center justify-center h-64">
+                <div className="text-center space-y-4">
+                  <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                  <p className="text-slate-400 font-mono text-sm">Loading bio-twin data...</p>
+                </div>
+              </div>
+            )}
+            
+            {error && !currentData && (
+              <div className="flex items-center justify-center h-64">
+                <div className="text-center space-y-4 p-6 bg-rose-950/20 border border-rose-900/50 rounded-xl">
+                  <AlertTriangle className="w-12 h-12 text-rose-400 mx-auto" />
+                  <p className="text-rose-400 font-mono text-sm">Error loading data: {error.message || 'Unknown error'}</p>
+                  <button 
+                    onClick={() => handleLogin('demo-healthy')}
+                    className="px-4 py-2 bg-slate-800 text-slate-300 rounded text-xs font-mono uppercase"
+                  >
+                    Use Demo Mode
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {currentData && !loading && (
+              <>
+                {activePage === 'dashboard' && <DashboardView profile={profile} data={currentData} forecastSeries={dash?.forecast?.series} onToggleCopilot={() => setIsCopilotOpen(true)} />}
+                {activePage === 'insights' && <MultimodalView profile={profile} data={currentData} trendsData={trendsData} />}
+                {activePage === 'shap' && <ExplainabilityView profile={profile} data={currentData} />}
+                {activePage === 'evidence' && <EvidenceView />}
+                {activePage === 'settings' && <DataSourcesView userMode={profile} />}
+              </>
+            )}
           </DashboardShell>
           
-          <CopilotDrawer 
-            isOpen={isCopilotOpen} 
-            onClose={() => setIsCopilotOpen(false)} 
-            profile={userMode} 
-            data={currentData} 
-          />
+          {currentData && (
+            <CopilotDrawer 
+              isOpen={isCopilotOpen} 
+              onClose={() => setIsCopilotOpen(false)} 
+              profile={profile} 
+              data={currentData} 
+            />
+          )}
         </>
       )}
     </>
