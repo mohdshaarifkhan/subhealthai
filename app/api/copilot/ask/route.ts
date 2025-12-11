@@ -3,10 +3,16 @@ import OpenAI from "openai";
 import { toolSchemas } from "@/lib/copilotTools";
 import { runTool } from "@/lib/copilotExec";
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  baseURL: process.env.OPENAI_BASE_URL || undefined,
-});
+// Mark this route as dynamic to prevent build-time execution
+export const dynamic = 'force-dynamic';
+
+// Initialize client lazily to avoid build-time errors
+function getClient() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY || "dummy-key", // Fallback for build
+    baseURL: process.env.OPENAI_BASE_URL || undefined,
+  });
+}
 
 const MODEL = process.env.LLM_MODEL || "gpt-4o-mini";
 
@@ -27,7 +33,16 @@ function parseArgs(s: string) {
 }
 
 export async function POST(req: NextRequest) {
+  // Validate API key at runtime
+  if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === "dummy-key") {
+    return NextResponse.json(
+      { error: "OpenAI API key not configured" },
+      { status: 500 }
+    );
+  }
+
   const { user, version = "phase3-v1-wes", messages } = await req.json();
+  const client = getClient();
 
   const msg = [
     { role: "system", content: SYS },

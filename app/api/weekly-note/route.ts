@@ -1,5 +1,6 @@
 // app/api/weekly_note/route.ts
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '../../../lib/supabaseAdmin';
@@ -7,9 +8,11 @@ import OpenAI from 'openai';
 
 function ymd(d: Date) { return d.toISOString().slice(0,10) }
 
-// Create client once
-const apiKey = process.env.OPENAI_API_KEY;
-const openai = apiKey ? new OpenAI({ apiKey }) : null;
+// Initialize client lazily to avoid build-time errors
+function getOpenAIClient() {
+  const apiKey = process.env.OPENAI_API_KEY;
+  return apiKey ? new OpenAI({ apiKey }) : null;
+}
 
 export async function POST() {
   try {
@@ -133,6 +136,10 @@ Counts: ${JSON.stringify(counts)}
 Flags:
 ${flagsBullets}`;
 
+        const openai = getOpenAIClient();
+        if (!openai) {
+          throw new Error('OpenAI API key not configured');
+        }
         const resp = await openai.chat.completions.create({
           model: 'gpt-4o-mini',
           temperature: 0.3,

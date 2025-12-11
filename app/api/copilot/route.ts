@@ -3,10 +3,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { CopilotContext, getDashboard, getExplain, getAnomaly, getMetricTrend, reportLink } from "@/lib/copilot/tools";
 import { getMultimodalRiskForReport } from "@/lib/server/multimodalRisk";
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "ollama",
-  baseURL: process.env.OPENAI_BASE_URL || "http://127.0.0.1:11434/v1",
-});
+// Mark this route as dynamic to prevent build-time execution
+export const dynamic = 'force-dynamic';
+
+// Initialize client lazily to avoid build-time errors
+function getClient() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY || "dummy-key", // Fallback for build
+    baseURL: process.env.OPENAI_BASE_URL || undefined,
+  });
+}
+
 const MODEL = process.env.COPILOT_MODEL || process.env.LLM_MODEL || "qwen2.5:7b";
 
 function detectExistingIntents(s: string) {
@@ -231,6 +238,45 @@ export async function POST(req: NextRequest) {
 
     const context: Record<string, any> = {};
     for (const p of packs) context[p.title] = p.data;
+
+    // Validate API key at runtime
+    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === "dummy-key") {
+      // Return fallback response if API key is not configured
+      const dash = packs.find(p => p.title === "dashboard")?.data;
+      const exp = packs.find(p => p.title === "explain")?.data;
+      const multi = packs.find(p => p.title === "multimodal")?.data;
+      const riskPct = dash?.forecast_risk != null ? Math.round(dash.forecast_risk * 100) : "—";
+      const basePct = dash?.baseline_risk != null ? Math.round(dash.baseline_risk * 100) : "—";
+      const top = Array.isArray(exp?.top_contributors) ? exp.top_contributors.slice(0, 2) : [];
+      const bullets = top
+        .map((t: any) => {
+          const updown = t.shap_value > 0 ? "raised" : "reduced";
+          return `• ${t.feature}: today ${t.today} vs baseline ${t.baseline} (z ${t.z}); ${updown} risk`;
+        })
+        .join("\n");
+
+      let fallback = `Today's forecast risk: ${riskPct}% (baseline ${basePct}%).
+${bullets || "No strong contributors today."}
+Non-diagnostic; compared to your own baseline.`;
+
+      if (intent === "multimodal_overview" && multi) {
+        fallback = multimodalOverview(multi);
+      }
+      if (intent.startsWith("multimodal_condition_") && multi) {
+        fallback = multimodalConditionDetail(multi, condition);
+      }
+
+      return NextResponse.json({
+        intent,
+        metric,
+        condition,
+        answer: fallback,
+        fallback: true,
+        report_url: intent === "report" ? reportLink(ctx) : undefined,
+      });
+    }
+
+    const client = getClient();
 
     try {
       const completion = await client.chat.completions.create({
