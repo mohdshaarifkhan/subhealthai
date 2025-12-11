@@ -17,7 +17,7 @@ function detectExistingIntents(s: string) {
   return "summary";
 }
 
-export function detectIntent(userMessage: string) {
+function detectIntent(userMessage: string) {
   const msg = userMessage.toLowerCase();
 
   if (msg.includes("condition") || msg.includes("multimodal"))
@@ -191,7 +191,7 @@ export async function POST(req: NextRequest) {
       packs.push({ title: "multimodal", data: multi });
     }
 
-    if (intent === "multimodal_condition" || intent.startsWith("multimodal_condition_")) {
+    if (intent.startsWith("multimodal_condition_")) {
       const multi = await getMultimodalRiskForReport(ctx.user);
       let picked = condition;
       if (!picked) {
@@ -227,7 +227,7 @@ export async function POST(req: NextRequest) {
       '4. If data is missing, explicitly say "insufficient information".',
       "5. For conditions: summarize 'pattern index', 'tier', and top 2–4 reasons.",
       "6. Keep text short, scientific, and readable by clinicians & USCIS reviewers.",
-    ].join(\"\\n\");
+    ].join("\n");
 
     const context: Record<string, any> = {};
     for (const p of packs) context[p.title] = p.data;
@@ -275,7 +275,7 @@ Non-diagnostic; compared to your own baseline.`;
       if (intent === "multimodal_overview" && multi) {
         fallback = multimodalOverview(multi);
       }
-      if ((intent === "multimodal_condition" || intent.startsWith("multimodal_condition_")) && multi) {
+      if (intent.startsWith("multimodal_condition_") && multi) {
         fallback = multimodalConditionDetail(multi, condition);
       }
 

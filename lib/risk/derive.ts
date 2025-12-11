@@ -446,3 +446,28 @@ export function computeMultimodalRiskIndex(conditions: ConditionRisk[]): {
   return { overall_index: idx, overall_tier: tierFromIndex(idx) };
 }
 
+// Export functions for risk computation
+export async function labRisk(userId: string): Promise<number> {
+  // Stub implementation - compute risk from lab values
+  // This would query labs and compute a risk score
+  return 0;
+}
+
+export async function lifestyleScore(userId: string): Promise<number> {
+  // Stub implementation - compute lifestyle risk score
+  // This would query lifestyle data and compute a score
+  return 0;
+}
+
+export async function geneticPrior(userId: string): Promise<number> {
+  // Stub implementation - genetic prior risk
+  // This would query genetic data if available
+  return 0;
+}
+
+export async function familyPrior(userId: string): Promise<number> {
+  // Stub implementation - family history prior risk
+  // This would query family history data
+  return 0;
+}
+

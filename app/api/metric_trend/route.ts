@@ -33,7 +33,7 @@ export async function GET(req: Request) {
   }
 
   const series =
-    data?.map((row) => ({
+    data?.map((row: any) => ({
       day: row.day,
       value: row[dbColumn as keyof typeof row] != null ? Number(row[dbColumn as keyof typeof row]) : null,
     })) ?? [];

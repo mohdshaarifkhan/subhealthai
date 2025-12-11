@@ -1,4 +1,4 @@
-import { Request } from "next/server";
+// Request is a global type, no need to import
 import { resolveUserId } from "./resolveUser";
 
 export interface User {

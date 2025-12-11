@@ -18,8 +18,77 @@ type MetricRow = {
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
+  const userParam = searchParams.get("user");
 
-  const user = await resolveUserId(searchParams.get("user"));
+  // Handle demo users
+  if (userParam === "demo-healthy" || userParam === "demo-risk") {
+    const isRisk = userParam === "demo-risk";
+    const today = new Date().toISOString().slice(0, 10);
+    const demoData = isRisk
+      ? {
+          day: today,
+          steps: 4200,
+          sleep_minutes: 360,
+          hr_avg: 78,
+          hrv_avg: 42,
+          rhr: 68,
+        }
+      : {
+          day: today,
+          steps: 12500,
+          sleep_minutes: 480,
+          hr_avg: 58,
+          hrv_avg: 115,
+          rhr: 48,
+        };
+
+    // Return demo baseline data
+    const items: Record<
+      string,
+      { unit: string; today: number | null; baseline: number | null; delta: number | null; z: number | null }
+    > = {};
+
+    const SHAP_TO_DB: Record<string, { col: string; unit: string }> = {
+      steps: { col: "steps", unit: "steps" },
+      sleep_minutes: { col: "sleep_minutes", unit: "min" },
+      hrv_avg: { col: "hrv_avg", unit: "ms" },
+      rhr: { col: "rhr", unit: "bpm" },
+    };
+
+    for (const [shapKey, { col, unit }] of Object.entries(SHAP_TO_DB)) {
+      const todayVal = demoData[col as keyof typeof demoData] ?? null; 
+      const todayNum = typeof todayVal === 'number' ? todayVal : null;
+      const baseVal = todayNum != null ? (isRisk ? todayNum * 0.9 : todayNum * 1.1) : null; // Slightly different baseline
+      const deltaNum = todayNum != null && baseVal != null ? todayNum - baseVal : null;
+
+      items[shapKey] = {
+        unit,
+        today: todayNum,
+        baseline: baseVal,
+        delta: deltaNum,
+        z: deltaNum != null && baseVal != null ? deltaNum / (baseVal * 0.1) : null,
+      };
+    }
+
+    return new NextResponse(
+      JSON.stringify({ user: userParam, day: today, items }),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "public, max-age=60, stale-while-revalidate=600",
+        },
+      }
+    );
+  }
+
+  let user: string;
+  try {
+    user = await resolveUserId(userParam);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unable to resolve user.";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
   let day = searchParams.get("day");
 
   if (!day) {

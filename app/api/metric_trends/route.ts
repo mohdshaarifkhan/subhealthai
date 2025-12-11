@@ -66,7 +66,7 @@ export async function GET(req: Request) {
       continue;
     }
     series[feature] =
-      data?.map((row) => ({
+      data?.map((row: any) => ({
         day: row.day,
         value: row[col] != null ? Number(row[col]) : null,
       })) ?? [];

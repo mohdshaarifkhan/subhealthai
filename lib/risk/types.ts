@@ -25,9 +25,14 @@ export type VitalsSnapshot = {
 
 export type LifestyleProfile = {
   sleep_hours_workdays?: number | null;
+  sleep_hours_weekends?: number | null;
   activity_level?: "low" | "medium" | "high" | null;
   smoker_status?: "never" | "former" | "current" | null;
   stress_level?: "low" | "moderate" | "high" | null;
+  alcohol_per_week?: number | null;
+  work_pattern?: string | null;
+  meds_json?: any;
+  supplements_json?: any;
 };
 
 export type AllergySummary = {
@@ -69,10 +74,7 @@ export type ConditionRisk = {
 export type MultimodalContext = {
   labs?: LabsCore | null;
   vitals?: VitalsSnapshot | null;
-  lifestyle?: (LifestyleProfile & {
-    meds_json?: any;
-    supplements_json?: any;
-  }) | null;
+  lifestyle?: LifestyleProfile | null;
   allergies?: AllergySummary | null;
   family?: FamilyHistorySummary | null;
   wearable?: WearableSummary | null;

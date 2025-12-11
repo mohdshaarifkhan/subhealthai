@@ -1,18 +1,28 @@
 import { NextResponse } from "next/server";
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { resolveUserId } from "@/lib/resolveUser";
 
 type SeriesPoint = { day: string; risk: number };
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
 
-  const user = searchParams.get("user");
+  const userParam = searchParams.get("user");
   const version = searchParams.get("version");
   const days = Number(searchParams.get("days") ?? 14);
 
-  if (!user || !version) {
+  if (!userParam || !version) {
     return NextResponse.json({ error: "missing ?user or ?version" }, { status: 400 });
+  }
+
+  // 🔑 Resolve email → UUID if needed
+  let user: string;
+  try {
+    user = await resolveUserId(userParam);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unable to resolve user.";
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 
   const { data: latest, error: latestErr } = await supabaseAdmin

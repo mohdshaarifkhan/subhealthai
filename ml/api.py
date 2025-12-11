@@ -150,10 +150,35 @@ def predict_clinical_risk(data: ClinicalInput):
     acute_stress_multiplier = 1.0
     if data.avg_hrv < 30:
         acute_stress_multiplier += 0.15
-        risk_drivers.append({"factor": "Low HRV", "impact": "Acute Stress"})
+        risk_drivers.append({"factor": "Low HRV", "impact": "+12%"})
+    elif data.avg_hrv < 50:
+        risk_drivers.append({"factor": "Reduced HRV", "impact": "+5%"})
     
     if data.glucose > 140:
-        risk_drivers.append({"factor": "Glucose", "impact": "Metabolic Risk"})
+        risk_drivers.append({"factor": "Elevated glucose", "impact": "+12%"})
+    elif data.glucose > 100:
+        risk_drivers.append({"factor": "Elevated glucose", "impact": "+8%"})
+    
+    # Add cholesterol-based driver
+    if data.cholesterol > 200:
+        risk_drivers.append({"factor": "High cholesterol", "impact": "+8%"})
+    elif data.cholesterol > 180:
+        risk_drivers.append({"factor": "Elevated cholesterol", "impact": "+5%"})
+    
+    # Add BMI-based driver
+    if data.bmi >= 30:
+        risk_drivers.append({"factor": "High BMI", "impact": "+10%"})
+    elif data.bmi >= 25:
+        risk_drivers.append({"factor": "Elevated BMI", "impact": "+6%"})
+    
+    # If no drivers yet, add general risk indicators based on probabilities
+    if len(risk_drivers) == 0:
+        if diab_prob > 0.15:
+            risk_drivers.append({"factor": "Metabolic risk factors", "impact": f"+{int(diab_prob * 100)}%"})
+        if cardio_prob > 0.20:
+            risk_drivers.append({"factor": "Cardiovascular risk factors", "impact": f"+{int(cardio_prob * 100)}%"})
+        if data.avg_hrv < 60:
+            risk_drivers.append({"factor": "Reduced HRV", "impact": "+5%"})
     
     # Calculate Final Score
     overall_risk = ((diab_prob + cardio_prob) / 2) * acute_stress_multiplier

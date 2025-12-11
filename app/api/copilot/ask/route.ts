@@ -56,8 +56,8 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const name = toolCall.function.name;
-    const rawArgs = parseArgs(toolCall.function.arguments || "{}");
+    const name = 'function' in toolCall ? toolCall.function.name : '';
+    const rawArgs = parseArgs('function' in toolCall ? (toolCall.function.arguments || "{}") : "{}");
     const args = { user, version, ...rawArgs };
     const result = await runTool(name, args);
     toolResults[name] = result;

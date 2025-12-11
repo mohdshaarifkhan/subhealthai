@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import Sparkline from "./Sparkline";
+import { Sparkline } from "./Sparkline";
 
 import { METRIC_META, MetricKey, chipForDirection, colorForDirection, fmtNum } from "@/lib/metrics";
 
@@ -139,7 +139,7 @@ export default function InsightCard({ user, metric }: { user: string; metric: Me
         <div className="text-xs text-gray-600">{meta.guideline}</div>
         <div className="shrink-0 text-gray-600">
           {trend ? (
-            <Sparkline data={trend} title={`${meta.label} 7d`} />
+            <Sparkline points={trend.map((v: number) => ({ value: v }))} />
           ) : (
             <div className="text-xs text-gray-400">no trend</div>
           )}

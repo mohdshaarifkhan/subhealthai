@@ -1,63 +1,86 @@
-import React from "react";
 import { NextResponse } from "next/server";
+import React from "react";
 import { renderToStream } from "@react-pdf/renderer";
 
 import ReportDoc from "@/components/report/ReportDoc";
-import { getDashboard } from "@/lib/getDashboard";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getMultimodalRiskForReport } from "@/lib/server/multimodalRisk";
-
-export const runtime = "nodejs";
-
-async function getDefaultUserId() {
-  const { data, error } = await supabaseAdmin
-    .from("risk_scores")
-    .select("user_id, day")
-    .order("day", { ascending: false })
-    .limit(1);
-  if (error) return undefined;
-  return data?.[0]?.user_id as string | undefined;
-}
+import { DEMO_PROFILES } from "@/lib/dashboardViewData";
+import { getCurrentAppUserId } from "@/lib/getCurrentAppUserId";
+import { loadDashboardViewData } from "@/lib/dashboardLoader";
 
 export async function GET(req: Request) {
-  try {
-    const url = new URL(req.url);
-    const { searchParams, origin } = url;
+  const { searchParams } = new URL(req.url);
+  const mode = searchParams.get("mode"); // "demo-healthy" | "demo-risk" | null
+  const user = searchParams.get("user"); // Support user parameter as well
+  const label = searchParams.get("label") ?? undefined;
+  const version = searchParams.get("version") || "phase3-v1-wes";
 
-    let user = searchParams.get("user");
-    if (!user) {
-      user = await getDefaultUserId();
-    }
+  // Determine if this is a demo user
+  const isDemoHealthy = mode === "demo-healthy" || user === "demo-healthy";
+  const isDemoRisk = mode === "demo-risk" || user === "demo-risk";
+  const demoMode = isDemoHealthy ? "demo-healthy" : (isDemoRisk ? "demo-risk" : null);
 
-    const version = searchParams.get("version") ?? "phase3-v1-wes";
-    const label = searchParams.get("label") ?? undefined;
+  // 1) DEMO PATH
+  if (demoMode) {
+    const demoData = DEMO_PROFILES[demoMode];
 
-    if (!user) {
-      return NextResponse.json({ error: "missing ?user" }, { status: 400 });
-    }
-
-    const data = await getDashboard({ user, version, origin });
-    // Fetch multimodal patterns (non-diagnostic) to include in PDF
-    let multimodal: any = null;
-    try {
-      if (user) {
-        multimodal = await getMultimodalRiskForReport(user);
-      }
-    } catch {
-      multimodal = null;
-    }
     const stream = await renderToStream(
-      ReportDoc({ data, userLabel: label, multimodal }) as unknown as React.ReactElement
+      ReportDoc({
+        data: demoData,
+        userLabel:
+          label ??
+          (demoMode === "demo-healthy" ? "Demo: Nominal" : "Demo: High Drift"),
+        version: version,
+        multimodal: null,
+      }) as unknown as React.ReactElement,
     );
 
-    return new NextResponse(stream as unknown as ReadableStream<Uint8Array>, {
-      status: 200,
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="subhealthai_${user}_${version}.pdf"`,
+    return new NextResponse(
+      stream as unknown as ReadableStream<Uint8Array>,
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `inline; filename="subhealthai_${demoMode}_${version}.pdf"`,
+        },
       },
+    );
+  }
+
+  // 2) REAL USER PATH – use user parameter if provided, otherwise get from session
+  try {
+    let appUserId: string;
+    if (user && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(user)) {
+      // Valid UUID provided as user parameter
+      appUserId = user;
+    } else {
+      // Try to get from session
+      appUserId = await getCurrentAppUserId();
+    }
+    const data = await loadDashboardViewData(appUserId);
+
+    const stream = await renderToStream(
+      ReportDoc({
+        data,
+        userLabel: label ?? "SubHealthAI Profile",
+        version: version,
+        multimodal: null,
+      }) as unknown as React.ReactElement,
+    );
+
+    return new NextResponse(
+      stream as unknown as ReadableStream<Uint8Array>,
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `inline; filename="subhealthai_me_${version}.pdf"`,
+        },
+      },
+    );
+  } catch (err) {
+    console.error("PDF export error", err);
+    return new NextResponse("Unauthorized or user record missing", {
+      status: 401,
     });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "report failed" }, { status: 500 });
   }
 }

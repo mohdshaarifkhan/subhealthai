@@ -14,7 +14,7 @@ export async function GET() {
     .eq("is_default", true)
     .maybeSingle();
 
-  const version = reg?.version ?? "phase3-v1";
+  const version = reg?.version ?? "phase3-v1-wes";
 
   // Fetch overall metrics from evaluation_cache
   const { data, error } = await sb

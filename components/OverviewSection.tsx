@@ -9,8 +9,8 @@ export default function OverviewSection() {
 
   return (
     <section className="space-y-6">
-      <RiskHero user={user} version={version} />
-      <InsightGrid user={user} />
+      <RiskHero user={user || ''} version={version} />
+      <InsightGrid user={user || ''} />
     </section>
   );
 }

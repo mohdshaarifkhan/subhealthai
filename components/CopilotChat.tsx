@@ -10,7 +10,7 @@ export default function CopilotChat() {
 
   async function send() {
     if (!input.trim()) return;
-    const newItems = [...items, { role: "user", text: input }];
+    const newItems = [...items, { role: "user" as const, text: input }];
     setItems(newItems);
     setInput("");
 
@@ -19,11 +19,11 @@ export default function CopilotChat() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         user,
-        messages: newItems.map(m => ({ role: m.role, content: m.text })),
+        messages: newItems.map(m => ({ role: m.role as "user" | "assistant", content: m.text })),
       }),
     }).then(r => r.json());
 
-    setItems([...newItems, { role: "assistant", text: res.text }]);
+    setItems([...newItems, { role: "assistant" as const, text: res.text }]);
   }
 
   return (
