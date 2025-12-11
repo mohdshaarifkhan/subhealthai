@@ -33,7 +33,7 @@ def rescale_to_risk_space(contribs, risk):
 # Handle both direct execution and module import
 try:
     from .db import sb_client
-    from .config import DEMO_USER_ID, WEIGHTS_V1
+    from .config import DEMO_USER_ID, WEIGHTS_V1, ENGINE_VERSION
     from .baseline_model import score_features
     from .forecast_model import ForecastAdapter
     from .explainability import linear_contributions
@@ -41,7 +41,7 @@ except ImportError:
     # If running directly, add parent directory to path
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from ml.db import sb_client
-    from ml.config import DEMO_USER_ID, WEIGHTS_V1
+    from ml.config import DEMO_USER_ID, WEIGHTS_V1, ENGINE_VERSION
     from ml.baseline_model import score_features
     from ml.forecast_model import ForecastAdapter
     from ml.explainability import linear_contributions
@@ -84,7 +84,10 @@ def compute_features(series: List[Dict], idx: int, forecaster: ForecastAdapter):
         "forecast_delta": float(fcast),
     }
 
-def write_day(sb, user_id: str, day: str, feats: Dict, model_version: str = "phase3-v1"):
+def write_day(sb, user_id: str, day: str, feats: Dict, model_version: str = None):
+    # Use ENGINE_VERSION as default, allow override via env var or parameter
+    if model_version is None:
+        model_version = os.getenv("MODEL_VERSION", ENGINE_VERSION)
     raw, risk = score_features(feats, WEIGHTS_V1)
     # ensure risk is 0..1
     risk = safe_num(risk, 0.0, 1.0)
@@ -126,7 +129,7 @@ def write_day(sb, user_id: str, day: str, feats: Dict, model_version: str = "pha
         sb.table("explain_contribs").insert(rows).execute()
 
 def run(since: Optional[str] = None, until: Optional[str] = None, days_back: Optional[int] = None, 
-        forecaster_mode: str = "naive", model_version: str = "phase3-v1", user_id: Optional[str] = None):
+        forecaster_mode: str = "naive", model_version: str = None, user_id: Optional[str] = None):
     """Run phase3 computation for specified date range.
     
     Args:
@@ -163,6 +166,10 @@ def run(since: Optional[str] = None, until: Optional[str] = None, days_back: Opt
         # all_users = sb.table("users").select("id").execute().data or []
         # user_ids = [u["id"] for u in all_users]
     
+    # Use ENGINE_VERSION as default, allow override via env var or parameter
+    if model_version is None:
+        model_version = os.getenv("MODEL_VERSION", ENGINE_VERSION)
+    
     print(f"Processing {len(user_ids)} user(s) from {start.isoformat()} to {end.isoformat()}")
     print(f"Model version: {model_version}")
     
@@ -188,19 +195,21 @@ if __name__ == "__main__":
     ap.add_argument("--since", type=str, help="Start date (YYYY-MM-DD)")
     ap.add_argument("--until", type=str, help="End date (YYYY-MM-DD), defaults to today")
     ap.add_argument("--days-back", type=int, help="Number of days back from today (used if --since not provided)")
-    ap.add_argument("--version", type=str, default="phase3-v1", help="Model version tag (default: phase3-v1)")
+    ap.add_argument("--version", type=str, default=None, help=f"Model version tag (default: {ENGINE_VERSION} from config)")
     ap.add_argument("--user", type=str, help="Specific user ID (defaults to DEMO_USER_ID)")
     ap.add_argument("--forecast", type=str, default="naive", choices=["naive", "gru", "chronos"], help="Forecast adapter: naive|gru|chronos (default: naive)")
     
     args = ap.parse_args()
     
     forecast_kind = args.forecast
+    # Use ENGINE_VERSION if --version not provided
+    model_version = args.version if args.version is not None else os.getenv("MODEL_VERSION", ENGINE_VERSION)
 
     run(
         since=args.since,
         until=args.until,
         days_back=args.days_back,
         forecaster_mode=forecast_kind,
-        model_version=args.version,
+        model_version=model_version,
         user_id=args.user
     )

@@ -3,6 +3,7 @@ from sklearn.isotonic import IsotonicRegression
 # Handle both direct execution and module import
 try:
     from ml.db import sb_client
+    from ml.config import ENGINE_VERSION
     try:
         from .metrics import brier_score, ece, volatility
     except ImportError:
@@ -11,6 +12,7 @@ except ImportError:
     # If running directly, add parent directory to path
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
     from ml.db import sb_client
+    from ml.config import ENGINE_VERSION
     from ml.evaluation.metrics import brier_score, ece, volatility
 
 OUT=pathlib.Path(__file__).parent / "logs"; OUT.mkdir(parents=True, exist_ok=True)
@@ -398,12 +400,16 @@ def run_once(version, model_version=None, days_back=60, calibrate=True, make_fig
     """Run evaluation once with given configuration. Returns metrics dict."""
     sb = sb_client()
     
-    # Map forecast_type to model_version if provided
-    if forecast_type and not model_version:
+    # Use ENGINE_VERSION as default
+    if model_version is None:
+        model_version = os.getenv("MODEL_VERSION", ENGINE_VERSION)
+    
+    # Map forecast_type to model_version if provided (overrides default)
+    if forecast_type:
         if forecast_type == "naive":
-            model_version = "phase3-v1"  # Default naive doesn't have suffix
+            model_version = ENGINE_VERSION  # Default naive uses ENGINE_VERSION
         elif forecast_type == "gru":
-            model_version = "phase3-v1-gru"
+            model_version = f"{ENGINE_VERSION}-gru"
         # Add more forecast types as needed
     
     # Date range
@@ -490,8 +496,8 @@ def run_once(version, model_version=None, days_back=60, calibrate=True, make_fig
 
 def main():
     ap = argparse.ArgumentParser(description="Generate evaluation metrics matching UI data contract")
-    ap.add_argument("--version", type=str, default="phase3-v1", help="Evaluation version tag (default: phase3-v1)")
-    ap.add_argument("--model-version", type=str, help="Filter by model_version in risk_scores (optional)")
+    ap.add_argument("--version", type=str, default=ENGINE_VERSION, help=f"Evaluation version tag (default: {ENGINE_VERSION})")
+    ap.add_argument("--model-version", type=str, default=None, help=f"Filter by model_version in risk_scores (default: {ENGINE_VERSION})")
     ap.add_argument("--days-back", type=int, default=60, help="Number of days back from today (default: 60)")
     ap.add_argument("--make-figures", action="store_true", help="Generate visualization figures")
     ap.add_argument("--ablation", action="store_true", help="Run ablation study (all forecast/calibration combinations)")
@@ -507,7 +513,7 @@ def main():
     else:
         # Run single evaluation
         version = args.version
-        model_version = args.model_version or os.getenv("MODEL_VERSION")
+        model_version = args.model_version or os.getenv("MODEL_VERSION", ENGINE_VERSION)
         
         metrics = run_once(
             version=version,

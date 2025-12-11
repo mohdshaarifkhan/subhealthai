@@ -1,90 +1,141 @@
 "use client";
 
-import Summary from "@/components/Summary";
-import RiskCard from "@/components/RiskCard";
-import ExplainPanel from "@/components/Dashboard/ExplainPanel";
-import { Last7Table } from "@/components/Last7Table";
-import { ReliabilityCard } from "@/components/ReliabilityCard";
-import { VolatilityCard } from "@/components/VolatilityCard";
-import HeaderContextChips from "@/components/HeaderContextChips";
-import ExportPdfButton from "@/components/ExportPdfButton";
-import { useActiveUser } from "@/utils/useActiveUser";
-import CopilotPanel from "@/components/CopilotPanel";
-import WhyThis from "@/components/WhyThis";
-import MultimodalRiskPanel from "@/components/Dashboard/MultimodalRiskPanel";
-import EvidencePanel from "@/components/Dashboard/EvidencePanel";
-import { useReviewerMode } from "@/lib/useReviewerMode";
-import InfoIcon from "@/components/icons/InfoIcon";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import SubHealthAIDashboard from "@/components/SubHealthAIDashboard";
+import LoadingScreen from "@/components/LoadingScreen";
+import { getCurrentAppUser } from "@/lib/getCurrentAppUser";
 
-export default function Dashboard() {
-  const user = useActiveUser() || "demo";
-  const version = "phase3-v1-wes";
-  const reviewer = useReviewerMode();
+type MetricsRow = any;
+type LabsRow = any;
+type VitalsRow = any;
+
+export default function DashboardPage() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [currentEmail, setCurrentEmail] = useState<string | null>(null);
+  const [dataUserId, setDataUserId] = useState<string | null>(null);
+  const [metrics, setMetrics] = useState<MetricsRow[]>([]);
+  const [labs, setLabs] = useState<LabsRow[]>([]);
+  const [vitals, setVitals] = useState<VitalsRow[]>([]);
+  const [clinicalSummary, setClinicalSummary] = useState<any>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    const run = async () => {
+      setLoading(true);
+
+      // 1) Check auth on client
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+
+      if (userError || !userData.user?.email) {
+        console.warn("No logged-in user, redirecting to /");
+        router.push("/");
+        return;
+      }
+
+      const email = userData.user.email;
+      setCurrentEmail(email);
+
+      // 2) Map email -> data user_id (your real profile UUID) from database
+      try {
+        const appUser = await getCurrentAppUser();
+        const resolvedDataUserId = appUser.id;
+
+        if (!resolvedDataUserId) {
+          setErrorMsg("No data profile found for this account. Please contact support.");
+          setLoading(false);
+          return;
+        }
+
+        console.log("✅ Resolved user ID:", resolvedDataUserId, "for email:", email);
+        setDataUserId(resolvedDataUserId);
+
+        // 3) Load metrics / labs / vitals for that UUID
+      const [metricsRes, labsRes, vitalsRes] = await Promise.all([
+        supabase
+          .from("metrics")
+          .select("*")
+          .eq("user_id", resolvedDataUserId)
+          .order("day", { ascending: false })
+          .limit(60),
+        supabase
+          .from("labs_core")
+          .select("*")
+          .eq("user_id", resolvedDataUserId)
+          .order("date", { ascending: false })
+          .limit(10),
+        supabase
+          .from("vitals")
+          .select("*")
+          .eq("user_id", resolvedDataUserId)
+          .order("taken_at", { ascending: false })
+          .limit(30),
+      ]);
+
+      if (metricsRes.error) console.error("metrics error:", metricsRes.error);
+      if (labsRes.error) console.error("labs error:", labsRes.error);
+      if (vitalsRes.error) console.error("vitals error:", vitalsRes.error);
+
+      setMetrics(metricsRes.data ?? []);
+      setLabs(labsRes.data ?? []);
+      setVitals(vitalsRes.data ?? []);
+
+      // 4) Fetch clinical summary data
+      try {
+        const clinicalRes = await fetch('/api/clinical-summary');
+        if (clinicalRes.ok) {
+          const clinicalData = await clinicalRes.json();
+          setClinicalSummary(clinicalData);
+        } else {
+          console.warn('Clinical summary fetch failed:', clinicalRes.status);
+        }
+      } catch (err) {
+        console.error('Error fetching clinical summary:', err);
+      }
+
+        setLoading(false);
+      } catch (err) {
+        console.error("Error resolving user or loading data:", err);
+        setErrorMsg("Failed to load user data. Please try again.");
+        setLoading(false);
+      }
+    };
+
+    run();
+  }, [router]);
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  if (errorMsg) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-2 text-neutral-300">
+        <p>{errorMsg}</p>
+        <button
+          className="mt-2 rounded-md border border-neutral-600 px-3 py-1 text-sm"
+          onClick={() => router.push("/")}
+        >
+          Back to login
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
-      {reviewer && (
-        <div className="p-3 rounded-xl border border-dashed border-amber-500 bg-amber-50/40 text-amber-900 flex items-start gap-2">
-          <InfoIcon className="h-4 w-4 mt-0.5" />
-          <div>
-            <div className="text-xs font-semibold">Reviewer mode (read-only, non-diagnostic)</div>
-            <div className="text-xs">
-              You are viewing <strong>SubHealthAI</strong> in reviewer mode. All values are fixed, write-actions are disabled, and outputs are
-              presented for research, validation, and immigration/peer-review purposes only. This is <strong>not</strong> a clinical device.
-            </div>
-          </div>
-        </div>
-      )}
-      <header className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold">SubHealthAI</h1>
-          <div className="flex items-center gap-3 text-xs text-gray-500">
-            <span>Non-diagnostic demo</span>
-            <ExportPdfButton />
-          </div>
-        </div>
-        <HeaderContextChips />
-      </header>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <div className="space-y-6">
-          <RiskCard user={user} version={version} />
-          <ExplainPanel user={user} version={version} />
-          <CopilotPanel />
-          <section>
-            <h2 className="mb-2 text-sm font-semibold tracking-tight text-muted-foreground">
-              Multimodal Condition Patterns
-            </h2>
-            <MultimodalRiskPanel />
-          </section>
-        </div>
-        <div className="space-y-6">
-          <Summary user={user} version={version} />
-          <WhyThis user={user} version={version} />
-          <div className="grid grid-cols-2 gap-4">
-            <ReliabilityCard version={version} />
-            <VolatilityCard version={version} />
-          </div>
-        </div>
-      </div>
-
-      <Last7Table user={user} />
-
-      <section className="grid gap-6 lg:grid-cols-[2fr,1fr]">
-        <div>
-          <h2 className="mb-2 text-sm font-semibold tracking-tight text-muted-foreground">
-            Multimodal Condition Patterns
-          </h2>
-          <MultimodalRiskPanel />
-        </div>
-        <div>
-          <h2 className="mb-2 text-sm font-semibold tracking-tight text-muted-foreground">
-            Evidence & Engine Status
-          </h2>
-          <EvidencePanel />
-        </div>
-      </section>
-    </div>
+    <SubHealthAIDashboard
+      serverUserId={dataUserId!}
+      serverEmail={currentEmail!}
+      isRealUser={true}
+      currentEmail={currentEmail!}
+      isSyntheticDemo={false}
+      metrics={metrics}
+      labs={labs}
+      vitals={vitals}
+      dataUserId={dataUserId!}
+      initialClinical={clinicalSummary}
+    />
   );
 }
-

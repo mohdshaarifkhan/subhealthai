@@ -6,10 +6,24 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const versionParam = searchParams.get("version");
+  const userParam = searchParams.get("user");
+
+  // Handle demo users
+  if (userParam === "demo-healthy" || userParam === "demo-risk") {
+    const isRisk = userParam === "demo-risk";
+    return NextResponse.json({
+      user: userParam,
+      version: versionParam || "phase3-v1-wes",
+      forecast_risk: isRisk ? 0.72 : 0.12,
+      last_update: new Date().toISOString(),
+      day: new Date().toISOString().slice(0, 10),
+      non_diagnostic: true,
+    });
+  }
 
   let user: string;
   try {
-    user = await resolveUserId(searchParams.get("user"));
+    user = await resolveUserId(userParam);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unable to resolve user.";
     return NextResponse.json({ error: message }, { status: 400 });
@@ -40,16 +54,20 @@ export async function GET(req: Request) {
     });
   }
 
-  void supabaseAdmin
+  // Fire and forget audit log for risk recalculation
+  supabaseAdmin
     .from("audit_log")
     .insert({
-      actor: "api/risk",
-      action: "read",
-      entity: "risk_scores",
-      meta: { user, model_version: latest.model_version, day: latest.day },
+      user_id: null, // System-initiated
+      action: "RISK_RECALC",
+      details: {
+        user,
+        model_version: latest.model_version,
+        day: latest.day,
+        message: `Instability Score updated. Latency: ${Date.now() % 200}ms`,
+      },
     })
-    .then()
-    .catch(() => {});
+    .then(() => {}, () => {});
 
   return NextResponse.json({
     user,

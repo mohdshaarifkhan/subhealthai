@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import InfoIcon from "@/components/icons/InfoIcon";
+import { InfoIcon } from "@/components/icons/InfoIcon";
 import { ProfileStep } from "./ProfileStep";
 import { LabsStep } from "./LabsStep";
 import { AllergySymptomStep } from "./AllergySymptomStep";

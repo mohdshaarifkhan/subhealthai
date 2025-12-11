@@ -121,15 +121,16 @@ export async function GET(req: Request) {
 
   const summary = sentence(rows);
 
-  void supabaseAdmin
+  const auditPromise = supabaseAdmin
     .from("audit_log")
     .insert({
       user_id: user,
       action: "explain_summary",
       details: { version, day, n: rows.length, top: rows },
-    })
-    .then()
-    .catch(() => undefined);
+    });
+  
+  // Fire and forget - handle promise properly
+  Promise.resolve(auditPromise).catch(() => undefined);
 
   return NextResponse.json(
     {

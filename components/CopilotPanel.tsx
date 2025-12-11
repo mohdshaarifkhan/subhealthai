@@ -12,7 +12,7 @@ export default function CopilotPanel() {
   async function send() {
     const m = input.trim();
     if (!m) return;
-    const nextMsgs = [...msgs, { role: "user", content: m }];
+    const nextMsgs = [...msgs, { role: "user" as const, content: m }];
     setMsgs(nextMsgs);
     setInput("");
     setLoading(true);
@@ -25,9 +25,9 @@ export default function CopilotPanel() {
       const data = await res.json();
       const answer = data?.answer || "No reply.";
       const footer = data?.report_url ? `\n\nReport: ${data.report_url}` : "";
-      setMsgs(prev => [...prev, { role: "assistant", content: answer + footer }]);
+      setMsgs(prev => [...prev, { role: "assistant" as const, content: answer + footer }]);
     } catch (e: any) {
-      setMsgs(prev => [...prev, { role: "assistant", content: `Copilot failed. ${e.message}` }]);
+      setMsgs(prev => [...prev, { role: "assistant" as const, content: `Copilot failed. ${e.message}` }]);
     } finally {
       setLoading(false);
     }

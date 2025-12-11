@@ -13,6 +13,7 @@ type RiskResp = {
   non_diagnostic?: boolean;
   day?: string;
   message?: string;
+  reliability_points?: Array<{ pred: number; obs: number; n: number }>;
 };
 
 type ExplainResp = {

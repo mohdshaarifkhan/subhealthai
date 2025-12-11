@@ -40,3 +40,119 @@ export function reportLink(ctx: CopilotContext) {
   return u.toString();
 }
 
+// Export toolSpecs for LLM route (OpenAI format)
+export const toolSpecs = [
+  {
+    type: "function",
+    function: {
+      name: "get_risk",
+      description: "Get current instability risk score for a user",
+      parameters: {
+        type: "object",
+        properties: {
+          user: { type: "string" },
+          version: { type: "string" }
+        },
+        required: ["user"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_explain_summary",
+      description: "Get SHAP-based explanation of top contributors to instability",
+      parameters: {
+        type: "object",
+        properties: {
+          user: { type: "string" },
+          version: { type: "string" }
+        },
+        required: ["user"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_anomaly",
+      description: "Get anomaly detection results (z-scores vs baseline)",
+      parameters: {
+        type: "object",
+        properties: {
+          user: { type: "string" }
+        },
+        required: ["user"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_reliability",
+      description: "Get model reliability metrics",
+      parameters: {
+        type: "object",
+        properties: {
+          version: { type: "string" }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_volatility",
+      description: "Get model volatility index",
+      parameters: {
+        type: "object",
+        properties: {
+          version: { type: "string" }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "make_pdf",
+      description: "Generate a PDF report link",
+      parameters: {
+        type: "object",
+        properties: {
+          user: { type: "string" },
+          version: { type: "string" },
+          range: { type: "string", enum: ["7d", "30d"] }
+        },
+        required: ["user"]
+      }
+    }
+  }
+];
+
+// Export executeTool for tool route
+export async function executeTool(name: string, args: any): Promise<any> {
+  const ctx: CopilotContext = {
+    user: args.user || "",
+    version: args.version || "phase3-v1-wes",
+    range: args.range || "7d"
+  };
+
+  switch (name) {
+    case "get_risk":
+      return getDashboard(ctx);
+    case "get_explain_summary":
+      return getExplain(ctx);
+    case "get_anomaly":
+      return getAnomaly(ctx);
+    case "get_reliability":
+    case "get_volatility":
+      // These would need their own API routes
+      return { error: "Not implemented" };
+    case "make_pdf":
+      return { url: reportLink(ctx) };
+    default:
+      throw new Error(`Unknown tool: ${name}`);
+  }
+}
+
