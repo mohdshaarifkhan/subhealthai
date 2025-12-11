@@ -80,3 +80,37 @@ create table if not exists public.audit_log (
 -- alter table public.flags enable row level security;
 -- alter table public.weekly_notes enable row level security;
 -- alter table public.audit_log enable row level security;
+
+-- ==============================
+-- Table: risk_scores
+-- ==============================
+
+create table if not exists public.risk_scores (
+  id bigserial primary key,
+  user_id uuid not null references public.users(id) on delete cascade,
+  day date not null,
+  risk_score numeric not null check (risk_score >= 0 and risk_score <= 1),
+  model_version text not null,
+  features jsonb not null,
+  created_at timestamptz not null default now(),
+  unique (user_id, day, model_version)
+);
+
+create index if not exists idx_risk_scores_user_day on public.risk_scores (user_id, day);
+create index if not exists idx_risk_scores_day on public.risk_scores (day);
+
+-- ==============================
+-- Table: explainability_images
+-- ==============================
+
+create table if not exists public.explainability_images (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  day date not null,
+  img_url text not null,
+  created_at timestamptz not null default now(),
+  unique (user_id, day)
+);
+
+create index if not exists idx_explainability_images_user_day on public.explainability_images (user_id, day);
+
