@@ -116,6 +116,7 @@ export async function POST() {
     // --- LLM (or fallback) ---
     let usedLLM = false;
     let interpretationText = `This week shows ${counts.total} signal(s). Focus on sleep regularity, recovery, and stress balance.`;
+    const openai = getOpenAIClient();
     if (openai) {
       try {
         const flagsBullets = (flags ?? [])
@@ -136,10 +137,6 @@ Counts: ${JSON.stringify(counts)}
 Flags:
 ${flagsBullets}`;
 
-        const openai = getOpenAIClient();
-        if (!openai) {
-          throw new Error('OpenAI API key not configured');
-        }
         const resp = await openai.chat.completions.create({
           model: 'gpt-4o-mini',
           temperature: 0.3,
