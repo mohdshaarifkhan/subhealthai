@@ -19,6 +19,19 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Data and exports
+data/
+exports/
+
+# Python / ML
+ml/
+__pycache__/
+*.pyc
+*.pkl
+*.pyo
+*.pyd
+.Python
+
 # Misc
 .DS_Store
 *.swp
