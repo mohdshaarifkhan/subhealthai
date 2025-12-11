@@ -14,6 +14,9 @@ const sb = createClient(supabaseUrl, supabaseAnonKey);
 const CLINICAL_API_BASE =
   process.env.CLINICAL_API_BASE ?? "http://127.0.0.1:8000";
 
+// Mark this route as dynamic since it uses request.url
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);

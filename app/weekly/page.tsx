@@ -1,5 +1,5 @@
 // app/weekly/page.tsx
-import { supabase } from '../../lib/supabase'
+import { supabaseServer } from '@/lib/supabaseServer'
 import GenerateWeeklyButton from '../../components/GenerateWeeklyButton' 
 import EmailButton from '../../components/EmailButton'
 import Badge from '../../components/Badge'
@@ -9,7 +9,7 @@ export default async function WeeklyNote() {
   const dayISO = today.toISOString().slice(0,10)
 
   // Fetch the latest saved weekly note
-  const { data: latestNote } = await supabase
+  const { data: latestNote } = await supabaseServer
     .from('weekly_notes')
     .select('week_start,week_end,summary,recommendations,note_json,created_at')
     .order('created_at', { ascending: false })
@@ -18,7 +18,7 @@ export default async function WeeklyNote() {
 
   let flagsForNote: any[] = [];
   if (saved) {
-    const { data: f2 } = await supabase
+    const { data: f2 } = await supabaseServer
       .from('flags')
       .select('day, flag_type, severity, rationale')
       .gte('day', saved.week_start)
@@ -34,13 +34,13 @@ export default async function WeeklyNote() {
   // fallback if you prefer: const usedLLM = !!saved?.note_json?.llm_used
 
   // Last 7 days metrics & flags
-  const { data: metrics } = await supabase
+  const { data: metrics } = await supabaseServer
     .from('metrics')
     .select('day, sleep_minutes, hrv_avg, rhr, steps')
     .gte('day', new Date(Date.now() - 6*24*3600*1000).toISOString().slice(0,10))
     .order('day', { ascending: true })
 
-  const { data: flags } = await supabase
+  const { data: flags } = await supabaseServer
     .from('flags')
     .select('day, flag_type, severity, rationale')
     .gte('day', new Date(Date.now() - 6*24*3600*1000).toISOString().slice(0,10))
