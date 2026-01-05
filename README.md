@@ -328,6 +328,16 @@ Key tables in `/supabase/schema.sql`:
 
 ---
 
+## Live Research Prototype (Demonstration Only)
+
+A non-diagnostic research MVP of SubHealthAI has been deployed for demonstration and technical evaluation purposes only, supporting controlled demo profiles and audit logging to ensure transparency and reproducibility.
+
+The prototype supports controlled demo profiles and audit logging to ensure transparency and reproducibility.
+
+Demo access: https://subhealthai.vercel.app
+
+---
+
 ## 📈 Roadmap
 
 **✅ MVP (Completed)**  
