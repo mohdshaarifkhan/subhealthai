@@ -78,3 +78,6 @@ data/wes_backup/
 SESSION_CONTEXT.md
 data_private/
 _to_delete/
+
+# TypeScript incremental build cache
+tsconfig.tsbuildinfo
