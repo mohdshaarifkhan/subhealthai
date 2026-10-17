@@ -593,8 +593,7 @@ export default function ReportDoc({
             • Demographics: Age, sex at birth, height, weight from user profile
           </Text>
           <Text style={styles.bullet}>
-            • Engine: phase3-v1 — calibrated instability score and chronic risk models
-            (Pima & Cleveland)
+            • Engine: deterministic personal-baseline deviation analysis (non-diagnostic)
           </Text>
         </View>
 

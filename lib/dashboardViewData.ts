@@ -43,8 +43,8 @@ export type ClinicalCondition = {
   shortName: string;            // "Diabetes"
   riskPercent: number;          // e.g., 18.4
   riskTier: "Low" | "Moderate" | "High";
-  modelId: string;              // "pima_diabetes_gb_v1"
-  dataSource: string;           // "Pima Indians, UCI Cleveland"
+  modelId: string;              // legacy field; no population disease models are used
+  dataSource: string;           // legacy field
   notes?: string;               // short clinician-facing note
 };
 

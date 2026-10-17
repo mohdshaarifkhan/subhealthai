@@ -66,11 +66,6 @@ export default async function SettingsPage() {
           description="Blood pressure, heart rate, and derived BMI."
           status={ds?.vitals ?? "missing"}
         />
-        <Card
-          title="Chronic Disease Models"
-          description="Metabolic and cardiovascular risk models (Pima & Cleveland)."
-          status={ds?.chronicModels ?? "inactive"}
-        />
       </section>
 
       <section className="rounded-2xl border border-slate-700/70 bg-slate-950/60 px-4 py-3">
