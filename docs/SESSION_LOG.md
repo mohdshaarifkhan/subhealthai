@@ -9,74 +9,76 @@ and open items — not narrative.
 
 ## Current status & next up
 
-- **Active branch:** `feature/productEnhancement` (pushed to `origin`, tracking).
-  `main` is untouched.
+- **Active branch:** `feature/productEnhancement`. `main` untouched.
 - **Workflow rule (do not violate):** all work stays on this branch. **No PR, no
-  merge to `main`** until the entire build is finished and manually tested; only
-  then do we merge. Do not propose a PR/merge before the user says it's done.
-- **Done so far:** end-to-end registration flow; Phase-0 audit + adversarial
-  review; Vitest harness; authorization fixes **C1** (read + write routes) and
-  **H3** (copilot) with tests; copilot data layer restored via cookie
-  forwarding; **C3** cron gate; wearable-derived-metrics spec; ratified
-  deterministic-analytics-first stance.
-- **Tests:** `npm test` → 17 passed, 6 skipped (skipped = live-RLS suite needing
-  `TEST_*` env). `tsc --noEmit` clean.
+  merge to `main`** until the entire build is finished and manually tested.
+- **Product direction (2026-10-17):** non-diagnostic drift monitoring. Signals →
+  per-system drift vs the user's own baseline → drivers → n-of-1 experiments →
+  "bring this to your doctor" escalation. **Never name a disease or output a
+  disease probability.** Population disease models were removed.
+- **Real-data pipeline (new):** export upload → `ingest_batches` + `events_raw`
+  (canonical observations, deduped) → `daily_features` (`daily-v1`) →
+  `drift_runs` / `drift_signal_days` / `drift_days` (`drift-v1`).
+  Code: `lib/ingest/*`, `lib/analytics/{daily,drift}.ts`, `lib/pipeline/index.ts`.
+  Routes: `POST /api/ingest` (session-only), `POST /api/pipeline/run`,
+  `GET /api/drift`. CLI: `npm run ingest:export`.
+- **Tests:** `npm test` → 43 passed, 6 skipped (live-RLS suite). `tsc` clean,
+  `npm run build` passes (needs Supabase env vars present).
+  Persistence was verified against real Postgres + PostgREST via
+  `scripts/dev/e2e_pipeline.ts` (not part of `npm test`).
 
-### Build health
-- `npm run build` passes (exit 0). Vercel Preview builds were failing on
-  `/api/contextual_risk` + `/api/multimodal_risk`: GET handlers that call
-  `requireUser()` and weren't otherwise dynamic, so Next tried to static-prerender
-  them → no session at build → throw. Root cause tied to the C1 rewrite (its
-  try/catch around `getCurrentAppUserId()`/`cookies()` swallowed Next's
-  dynamic-usage bailout). Fixed by adding `export const dynamic = "force-dynamic"`
-  to all session-dependent API routes (37 total). Re-verify with `npm run build`
-  after touching auth/session routes.
-
-### Next up (pick one — both unblocked)
-1. **Provider-agnostic ingestion foundation** — canonical ingest API (+ per-user
-   auth) into `events_raw` (dedupe index already exists), AES-256-GCM token
-   encryption (`TOKEN_ENC_KEY`), real `device_accounts` persistence, secure OAuth
-   `state`+PKCE scaffold (fixes **C2**), connection status UI, tests.
-2. **Phase-3 deterministic analytics core** — versioned personalized baselines,
-   deviation (z/EWMA), change-point, volatility/persistence, additive
-   attribution, data-sufficiency gating; the derived-indicator registry from
-   `docs/wearable-derived-metrics.md`.
+### Next up
+1. **Apply migration** `20261017120000_ingestion_and_drift_v1.sql` (plus the
+   still-pending `20260615120000_user_registration_flow.sql`) to Supabase.
+2. **Run Shaarif's real Samsung Health export:** first `--dry-run` to see
+   unrecognized files/columns, then adjust `lib/ingest/samsung.ts` mappings
+   (HRV and the UTC+time_offset assumption are unverified against a real export).
+3. **Disease-language sweep** of what's left: `lib/risk/derive.ts` ("HbA1c is in the
+   diabetes range"), copilot "Prediabetes Pattern", `/api/dashboard`
+   "Prediabetes-range HbA1c", `condition_risk` writes.
+4. Point the dashboard at `/api/drift` (UI work, after the backend).
+5. Aggregator integration (Open Wearables recommended) behind an adapter interface;
+   Chronos-2 / TimesFM 2.5 expected-range layer; habit logging; n-of-1 experiments.
 
 ### Blocking decisions
-- **Wearable device:** undecided. Samsung Health has **no server-side web API**
-  (needs an Android Health Connect app or data export). Recommended purchase for
-  a clean live web-OAuth path: **Oura Ring** (best data + API) or **Fitbit Charge
-  6** (cheapest legitimate web OAuth). Foundation build is provider-agnostic and
-  not blocked; only the concrete adapter needs this.
-- **PR/merge:** deferred by policy until the full build is tested (see workflow
-  rule above).
+- **Wearable device / aggregator:** Open Wearables (self-hosted, MIT) vs Terra.
+  Fitbit legacy Web API shuts down Oct 30, 2026 → Google Health API. Strava:
+  do not integrate (API terms ban AI/ML use).
+- **PR/merge:** deferred by policy.
 
 ### Action items for the user (when relevant)
-- Set **`CRON_SECRET`** in env/Vercel and have the cron job send
-  `Authorization: Bearer <secret>` — `/api/cron` now fails closed (401) without it.
-- Apply the registration migration
-  `supabase/migrations/20260615120000_user_registration_flow.sql`
-  (`supabase db push`) — not yet applied to the live DB.
-- Confirm Supabase **dashboard auth settings** (email sign-ups enabled; email
-  confirmation on/off — UI handles both).
-- For wearables build: register a provider dev app (CLIENT_ID/SECRET/redirect)
-  and generate `TOKEN_ENC_KEY` (`openssl rand -base64 32`).
+- `supabase db push` for both pending migrations.
+- Set **`CRON_SECRET`** in env/Vercel (`/api/cron` fails closed without it).
+- Large exports: use the CLI (web upload capped at 4 MB, serverless body limit).
 
 ### Known open findings (not yet addressed)
-- **C2** — OAuth callback (`app/api/oauth/route.ts`) uses unsigned `state`; will
-  be replaced by the secure scaffold in the foundation build.
-- **H2** — real wearable OAuth/token exchange/encryption/backfill: entire
-  `lib/oauth.ts` / `lib/deviceAccounts.ts` / `lib/queue.ts` layer is stubbed.
-- **`/api/weekly-note`** — still unauthenticated + has a client button
-  (`GenerateWeeklyButton`) with non-user-scoped generation; needs an auth-model
-  decision (session vs. admin).
-- Medium items from the audit: analytics reproducibility unverified, demo-mode
-  leakage, audit_log raw-args/PII hygiene, file-upload validation (pre-Phase-4),
-  `public.users` RLS disabled.
+- **C2:** OAuth callback uses unsigned `state`.
+- **H2:** wearable OAuth/token layer (`lib/oauth.ts`, `lib/deviceAccounts.ts`,
+  `lib/queue.ts`) is stubbed. Replace via aggregator.
+- **`/api/weekly-note`:** unauthenticated.
+- Medium: demo-mode leakage, audit_log PII hygiene, `public.users` RLS disabled.
+- `lib/risk/fuse.ts`: hand-set weights; missing inputs default to 0 (treated as healthy).
+  Superseded by drift engine; remove when the dashboard moves to `/api/drift`.
 
 ---
 
 ## Session history
+
+### 2026-10-17: Real-data pipeline v1 + disease-model removal
+- Removed population disease models (diabetes/cardio classifiers, `/api/ml/predict*`,
+  `/api/clinical/summary`, "Pima & Cleveland" UI/report text). `getClinicalSummary`
+  returns no disease cards.
+- **Security:** `/api/ingest` was unauthenticated and wrote into any account by
+  `email` using the service role. It is now session-only. Tests in
+  `tests/security/ingest-auth.test.ts`.
+- New canonical ingestion (`Observation` type, Samsung export zip parser, long-CSV
+  parser) + migration (lineage columns, `ingest_batches`, `daily_features`, drift tables, read-own RLS).
+- Fixed: the old Python Samsung loader used the export-file timestamp as the
+  measurement day (all history collapsed into one day). The new parser uses per-row times.
+- Drift engine v1: trailing-window robust baseline (median/MAD with floors),
+  adverse-signed z, EWMA persistence, sufficiency gating, exact additive attribution.
+- Decision: deterministic engine is authoritative; GRU/IsolationForest/SHAP-on-proxy
+  are not used by the new pipeline (circular proxy target).
 
 ### 2026-07-11 — Security remediation + wearable/analytics spec
 Branch `feature/productEnhancement` (created off `main`). Nothing on `main`.

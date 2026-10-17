@@ -73,3 +73,8 @@ data/wes_backup/
 
 # --- Supabase / secrets ---
 .supabase/
+
+# Private context & health data (never commit)
+SESSION_CONTEXT.md
+data_private/
+_to_delete/
