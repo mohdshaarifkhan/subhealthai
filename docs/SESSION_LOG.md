@@ -28,8 +28,11 @@ and open items — not narrative.
   `scripts/dev/e2e_pipeline.ts` (not part of `npm test`).
 
 ### Next up
-1. **Apply migration** `20261017120000_ingestion_and_drift_v1.sql` (plus the
-   still-pending `20260615120000_user_registration_flow.sql`) to Supabase.
+1. **Apply migrations** to Supabase in order: `20260615120000_user_registration_flow`,
+   `20261017120000_ingestion_and_drift_v1`, `20261017130000_security_hardening`.
+   The live DB had 16 tables without RLS plus 12 SECURITY DEFINER views, so the
+   anon key could read users/events_raw/audit_log. Hardening was verified locally
+   with `scripts/dev/rls_check.sql`. **Apply it before any real health data is ingested.**
 2. **Run Shaarif's real Samsung Health export:** first `--dry-run` to see
    unrecognized files/columns, then adjust `lib/ingest/samsung.ts` mappings
    (HRV and the UTC+time_offset assumption are unverified against a real export).

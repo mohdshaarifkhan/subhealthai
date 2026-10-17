@@ -2,7 +2,9 @@ import { createClient } from "@supabase/supabase-js";
 import dayjs from "dayjs";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!; // For local testing only
+// Service role: demo seeding is an operator task. The anon key cannot (and must
+// not be able to) write to RLS-protected tables.
+const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(url, key);
 
 async function seed() {

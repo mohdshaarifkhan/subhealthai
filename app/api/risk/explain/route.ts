@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 import { resolveOwnUserId } from "@/lib/authUser";
 
@@ -47,10 +47,9 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  // `user` was resolved from the caller's session above; read with the server
+  // client (an anon client with no session cannot see RLS-protected rows).
+  const supabase = supabaseAdmin;
 
   // latest risk
   const { data: row, error } = await supabase
