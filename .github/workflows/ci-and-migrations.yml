@@ -1,0 +1,87 @@
+# CI + automatic Supabase migrations.
+#
+# On every push to feature/productEnhancement (or a manual run):
+#   1. test:     install, type-check, unit tests.
+#   2. migrate:  only if tests pass AND files under supabase/migrations/ changed
+#                (or on manual run): link the project, show a dry run, then
+#                `supabase db push` the pending migrations to the live project.
+#
+# One-time setup (GitHub repo → Settings → Secrets and variables → Actions):
+#   SUPABASE_ACCESS_TOKEN  personal access token (supabase.com → Account → Access Tokens)
+#   SUPABASE_DB_PASSWORD   the project's database password
+# Without them the migrate job skips with a notice instead of failing.
+name: CI and migrations
+
+on:
+  push:
+    branches: [feature/productEnhancement]
+  workflow_dispatch:
+
+concurrency:
+  group: supabase-migrations
+  cancel-in-progress: false
+
+env:
+  SUPABASE_PROJECT_REF: snlorrvhchwlnfiosiyq
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    outputs:
+      migrations_changed: ${{ steps.changes.outputs.migrations }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test
+      - id: changes
+        name: Detect migration changes
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "migrations=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" 2>/dev/null | grep -q '^supabase/migrations/'; then
+            echo "migrations=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "migrations=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  migrate:
+    needs: test
+    if: needs.test.outputs.migrations_changed == 'true'
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check secrets
+        id: secrets
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$SUPABASE_DB_PASSWORD" ]; then
+            echo "::notice::SUPABASE_ACCESS_TOKEN / SUPABASE_DB_PASSWORD not set; skipping migrations."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: supabase/setup-cli@v1
+        if: steps.secrets.outputs.ready == 'true'
+        with:
+          version: latest
+      - name: Link project
+        if: steps.secrets.outputs.ready == 'true'
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+      - name: Pending migrations (dry run)
+        if: steps.secrets.outputs.ready == 'true'
+        run: supabase db push --dry-run --password "$SUPABASE_DB_PASSWORD"
+      - name: Apply migrations
+        if: steps.secrets.outputs.ready == 'true'
+        run: supabase db push --password "$SUPABASE_DB_PASSWORD"
+      - name: Show migration history
+        if: steps.secrets.outputs.ready == 'true'
+        run: supabase migration list --password "$SUPABASE_DB_PASSWORD"
