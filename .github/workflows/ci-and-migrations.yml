@@ -3,13 +3,13 @@
 # On every push to feature/productEnhancement (or a manual run):
 #   1. test:     install, type-check, unit tests.
 #   2. migrate:  only if tests pass AND files under supabase/migrations/ changed
-#                (or on manual run): link the project, show a dry run, then
-#                `supabase db push` the pending migrations to the live project.
+#                (or on manual run): dry run, then `supabase db push` the
+#                pending migrations to the live project.
 #
 # One-time setup (GitHub repo → Settings → Secrets and variables → Actions):
-#   SUPABASE_ACCESS_TOKEN  personal access token (supabase.com → Account → Access Tokens)
-#   SUPABASE_DB_PASSWORD   the project's database password
-# Without them the migrate job skips with a notice instead of failing.
+#   SUPABASE_DB_URL  the same value as DATABASE_URL in .env.local
+#                    (Supabase → Project Settings → Database → connection string)
+# Without it the migrate job skips with a notice instead of failing.
 name: CI and migrations
 
 on:
@@ -20,9 +20,6 @@ on:
 concurrency:
   group: supabase-migrations
   cancel-in-progress: false
-
-env:
-  SUPABASE_PROJECT_REF: snlorrvhchwlnfiosiyq
 
 jobs:
   test:
@@ -56,15 +53,14 @@ jobs:
     if: needs.test.outputs.migrations_changed == 'true'
     runs-on: ubuntu-latest
     env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
     steps:
       - uses: actions/checkout@v4
-      - name: Check secrets
+      - name: Check secret
         id: secrets
         run: |
-          if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$SUPABASE_DB_PASSWORD" ]; then
-            echo "::notice::SUPABASE_ACCESS_TOKEN / SUPABASE_DB_PASSWORD not set; skipping migrations."
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::notice::SUPABASE_DB_URL not set; skipping migrations."
             echo "ready=false" >> "$GITHUB_OUTPUT"
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
@@ -73,15 +69,12 @@ jobs:
         if: steps.secrets.outputs.ready == 'true'
         with:
           version: latest
-      - name: Link project
-        if: steps.secrets.outputs.ready == 'true'
-        run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
       - name: Pending migrations (dry run)
         if: steps.secrets.outputs.ready == 'true'
-        run: supabase db push --dry-run --password "$SUPABASE_DB_PASSWORD"
+        run: supabase db push --db-url "$SUPABASE_DB_URL" --dry-run
       - name: Apply migrations
         if: steps.secrets.outputs.ready == 'true'
-        run: supabase db push --password "$SUPABASE_DB_PASSWORD"
+        run: supabase db push --db-url "$SUPABASE_DB_URL"
       - name: Show migration history
         if: steps.secrets.outputs.ready == 'true'
-        run: supabase migration list --password "$SUPABASE_DB_PASSWORD"
+        run: supabase migration list --db-url "$SUPABASE_DB_URL"
